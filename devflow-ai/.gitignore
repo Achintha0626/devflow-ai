@@ -1,0 +1,12 @@
+node_modules/
+.env
+dist/
+coverage/
+*.log
+.DS_Store
+
+# Prisma generated AI skills
+backend/.agents/
+backend/.claude/
+backend/.windsurf/
+backend/skills-lock.json

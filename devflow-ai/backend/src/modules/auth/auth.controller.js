@@ -1,4 +1,4 @@
-const { registerUser, loginUser } = require("./auth.service");
+const { registerUser, loginUser, refreshUserTokens, getAuthenticatedUser, revokeRefreshToken } = require("./auth.service");
 
 const register = async (req, res) => {
   try {
@@ -37,12 +37,12 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await loginUser({ email, password });
+    const result = await loginUser({ email, password });
 
     return res.status(200).json({
       success: true,
       message: "Login successful",
-      data: user,
+      data: result,
     });
   } catch (error) {
     if (error.message === "INVALID_CREDENTIALS") {
@@ -68,7 +68,23 @@ const login = async (req, res) => {
   }
 };
 
+const refresh = async (req, res) => {
+  try { return res.status(200).json({ success: true, data: await refreshUserTokens(req.body.refreshToken) }); }
+  catch (error) { if (error.message !== "INVALID_REFRESH_TOKEN") console.error(error); return res.status(401).json({ success: false, message: "Invalid refresh token" }); }
+};
+
+const me = async (req, res) => res.status(200).json({ success: true, data: req.user });
+
+const logout = async (req, res) => {
+  try { await revokeRefreshToken(req.body.refreshToken); }
+  catch (error) { console.error(error); }
+  return res.status(200).json({ success: true, message: "Logout successful" });
+};
+
 module.exports = {
   register,
   login,
+  refresh,
+  me,
+  logout,
 };

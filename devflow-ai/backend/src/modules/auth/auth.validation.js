@@ -7,6 +7,12 @@ const registerSchema = z.object({
   password: z.string().min(8).max(72),
 });
 
+const loginSchema = z.object({
+  email: z.string().trim().email().toLowerCase(),
+  password: z.string().min(1),
+});
+
 module.exports = {
   registerSchema,
+  loginSchema,
 };

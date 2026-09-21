@@ -18,6 +18,20 @@ enum WorkspaceRole {
   QA
 }
 
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum ProjectRole {
+  PROJECT_MANAGER
+  DEVELOPER
+  QA
+}
+
 model User {
   id                   String            @id @default(uuid())
   firstName            String
@@ -31,6 +45,8 @@ model User {
   refreshTokens        RefreshToken[]
   createdWorkspaces    Workspace[]       @relation("WorkspaceCreatedBy")
   workspaceMemberships WorkspaceMember[]
+  createdProjects      Project[]         @relation("ProjectCreatedBy")
+  projectMemberships   ProjectMember[]
 }
 
 model RefreshToken {
@@ -53,6 +69,7 @@ model Workspace {
   updatedAt     DateTime          @updatedAt
   createdBy     User              @relation("WorkspaceCreatedBy", fields: [createdById], references: [id])
   members       WorkspaceMember[]
+  projects      Project[]
 }
 
 model WorkspaceMember {
@@ -68,4 +85,53 @@ model WorkspaceMember {
   @@index([workspaceId])
   @@index([userId])
   @@index([workspaceId, role])
+}
+
+model Project {
+  id            String             @id @default(uuid())
+  workspaceId   String
+  name          String
+  key           String
+  description   String?
+  status        ProjectStatus      @default(PLANNING)
+  startDate     DateTime?
+  deadline      DateTime?
+  createdById   String
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  workspace     Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy     User               @relation("ProjectCreatedBy", fields: [createdById], references: [id])
+  members       ProjectMember[]
+  technologies  ProjectTechnology[]
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId])
+  @@index([workspaceId, status])
+  @@index([createdById])
+}
+
+model ProjectMember {
+  id        String      @id @default(uuid())
+  projectId String
+  userId    String
+  role      ProjectRole
+  joinedAt  DateTime    @default(now())
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+  @@index([projectId, role])
+}
+
+model ProjectTechnology {
+  id        String  @id @default(uuid())
+  projectId String
+  name      String
+  category  String?
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, name])
+  @@index([projectId])
 }

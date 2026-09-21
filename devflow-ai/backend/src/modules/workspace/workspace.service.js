@@ -10,6 +10,22 @@ const safeWorkspaceSelect = {
   updatedAt: true,
 };
 
+const safeMemberSelect = {
+  id: true,
+  userId: true,
+  role: true,
+  joinedAt: true,
+  user: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      avatarUrl: true,
+    },
+  },
+};
+
 const slugify = (value) => {
   const slug = value
     .normalize("NFKD")
@@ -120,8 +136,130 @@ const getUserWorkspace = async ({ workspaceId, userId }) => {
   };
 };
 
+const formatMember = (member) => ({
+  membershipId: member.id,
+  userId: member.userId,
+  firstName: member.user.firstName,
+  lastName: member.user.lastName,
+  email: member.user.email,
+  avatarUrl: member.user.avatarUrl,
+  role: member.role,
+  joinedAt: member.joinedAt,
+});
+
+const addWorkspaceMember = async ({ workspaceId, email, role }) => {
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+
+  if (!user) throw new Error("USER_NOT_FOUND");
+
+  const existingMembership = await prisma.workspaceMember.findUnique({
+    where: { workspaceId_userId: { workspaceId, userId: user.id } },
+  });
+
+  if (existingMembership) throw new Error("MEMBER_ALREADY_EXISTS");
+
+  try {
+    const member = await prisma.workspaceMember.create({
+      data: { workspaceId, userId: user.id, role },
+      select: safeMemberSelect,
+    });
+
+    return formatMember(member);
+  } catch (error) {
+    if (isUniqueConstraintError(error)) throw new Error("MEMBER_ALREADY_EXISTS");
+    throw error;
+  }
+};
+
+const listWorkspaceMembers = async (workspaceId) => {
+  const members = await prisma.workspaceMember.findMany({
+    where: { workspaceId },
+    orderBy: { joinedAt: "asc" },
+    select: safeMemberSelect,
+  });
+
+  return members.map(formatMember);
+};
+
+const changeWorkspaceMemberRole = async ({ workspaceId, memberId, role }) => {
+  try {
+    const member = await prisma.$transaction(async (tx) => {
+      const currentMember = await tx.workspaceMember.findFirst({
+        where: { id: memberId, workspaceId },
+        select: { id: true, role: true },
+      });
+
+      if (!currentMember) throw new Error("MEMBER_NOT_FOUND");
+
+      if (currentMember.role === role) {
+        return tx.workspaceMember.findFirst({
+          where: { id: memberId, workspaceId },
+          select: safeMemberSelect,
+        });
+      }
+
+      if (currentMember.role === "ADMIN" && role !== "ADMIN") {
+        const adminCount = await tx.workspaceMember.count({
+          where: { workspaceId, role: "ADMIN" },
+        });
+
+        if (adminCount <= 1) throw new Error("LAST_ADMIN");
+      }
+
+      return tx.workspaceMember.update({
+        where: { id: memberId },
+        data: { role },
+        select: safeMemberSelect,
+      });
+    }, { isolationLevel: "Serializable" });
+
+    return formatMember(member);
+  } catch (error) {
+    if (error.code === "P2034") throw new Error("TRANSACTION_CONFLICT");
+    throw error;
+  }
+};
+
+const removeWorkspaceMember = async ({ workspaceId, memberId }) => {
+  try {
+    const member = await prisma.$transaction(async (tx) => {
+      const currentMember = await tx.workspaceMember.findFirst({
+        where: { id: memberId, workspaceId },
+        select: { id: true, role: true },
+      });
+
+      if (!currentMember) throw new Error("MEMBER_NOT_FOUND");
+
+      if (currentMember.role === "ADMIN") {
+        const adminCount = await tx.workspaceMember.count({
+          where: { workspaceId, role: "ADMIN" },
+        });
+
+        if (adminCount <= 1) throw new Error("LAST_ADMIN");
+      }
+
+      return tx.workspaceMember.delete({
+        where: { id: memberId },
+        select: safeMemberSelect,
+      });
+    }, { isolationLevel: "Serializable" });
+
+    return formatMember(member);
+  } catch (error) {
+    if (error.code === "P2034") throw new Error("TRANSACTION_CONFLICT");
+    throw error;
+  }
+};
+
 module.exports = {
   createWorkspace,
   listUserWorkspaces,
   getUserWorkspace,
+  addWorkspaceMember,
+  listWorkspaceMembers,
+  changeWorkspaceMemberRole,
+  removeWorkspaceMember,
 };

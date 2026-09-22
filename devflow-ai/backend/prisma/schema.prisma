@@ -47,6 +47,31 @@ enum RequirementPriority {
   CRITICAL
 }
 
+enum AIGenerationStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum AISuggestedTaskStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EDITED
+}
+
+enum SuggestedTaskType {
+  FRONTEND
+  BACKEND
+  DATABASE
+  DEVOPS
+  TESTING
+  DESIGN
+  DOCUMENTATION
+  BUG
+  OTHER
+}
+
 model User {
   id                   String            @id @default(uuid())
   firstName            String
@@ -63,6 +88,7 @@ model User {
   createdProjects      Project[]         @relation("ProjectCreatedBy")
   projectMemberships   ProjectMember[]
   createdRequirements  Requirement[]     @relation("RequirementCreatedBy")
+  aiGenerations        AIGeneration[]    @relation("AIGenerationCreatedBy")
 }
 
 model RefreshToken {
@@ -165,8 +191,46 @@ model Requirement {
   updatedAt   DateTime            @updatedAt
   project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdBy   User                @relation("RequirementCreatedBy", fields: [createdById], references: [id])
+  aiGenerations AIGeneration[]
 
   @@index([projectId])
   @@index([projectId, status])
   @@index([projectId, priority])
+}
+
+model AIGeneration {
+  id            String             @id @default(uuid())
+  requirementId String
+  model         String
+  promptVersion String
+  status        AIGenerationStatus @default(PENDING)
+  errorMessage  String?
+  createdById   String
+  createdAt     DateTime           @default(now())
+  requirement   Requirement        @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  createdBy     User               @relation("AIGenerationCreatedBy", fields: [createdById], references: [id])
+  suggestions   AISuggestedTask[]
+
+  @@index([requirementId])
+  @@index([requirementId, status])
+  @@index([createdAt])
+}
+
+model AISuggestedTask {
+  id                  String                @id @default(uuid())
+  aiGenerationId      String
+  title               String
+  description         String
+  type                SuggestedTaskType
+  priority            RequirementPriority
+  complexity          String
+  estimatedStoryPoints Int?
+  acceptanceCriteria  Json
+  status              AISuggestedTaskStatus @default(PENDING)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  aiGeneration        AIGeneration         @relation(fields: [aiGenerationId], references: [id], onDelete: Cascade)
+
+  @@index([aiGenerationId])
+  @@index([aiGenerationId, status])
 }

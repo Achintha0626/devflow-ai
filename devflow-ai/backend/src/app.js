@@ -6,6 +6,7 @@ const requirementRoutes = require("./modules/requirement/requirement.routes");
 const aiRoutes = require("./modules/ai/ai.routes");
 const taskRoutes = require("./modules/tasks/task.routes");
 const sprintRoutes = require("./modules/sprint/sprint.routes");
+const kanbanRoutes = require("./modules/kanban/kanban.routes");
 
 const app = express();
 
@@ -25,5 +26,6 @@ app.use("/api/v1/workspaces", requirementRoutes);
 app.use("/api/v1/workspaces", aiRoutes);
 app.use("/api/v1/workspaces", taskRoutes);
 app.use("/api/v1/workspaces", sprintRoutes);
+app.use("/api/v1/workspaces", kanbanRoutes);
 
 module.exports = app;

@@ -27,6 +27,12 @@ const handleTaskError = (res, error) => {
   if (error.message === "TASK_STATUS_FORBIDDEN") {
     return res.status(403).json({ success: false, message: "You may only update the status of tasks assigned to you" });
   }
+  if (error.message === "TASK_STATUS_UNCHANGED") {
+    return res.status(409).json({ success: false, message: "Task already has this status" });
+  }
+  if (error.message === "INVALID_TASK_STATUS_TRANSITION") {
+    return res.status(409).json({ success: false, message: "Invalid task status transition" });
+  }
   if (error.message === "SUGGESTION_ALREADY_CONVERTED") {
     return res.status(409).json({ success: false, message: "AI suggestion has already been converted to a task" });
   }

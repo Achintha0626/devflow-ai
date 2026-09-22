@@ -34,6 +34,20 @@ const safeTaskSelect = {
 
 const isConflict = (error) => error && (error.code === "P2002" || error.code === "P2034");
 
+const TASK_STATUS_TRANSITIONS = {
+  TODO: ["IN_PROGRESS"],
+  IN_PROGRESS: ["TODO", "IN_REVIEW"],
+  IN_REVIEW: ["IN_PROGRESS", "DONE"],
+  DONE: ["IN_REVIEW"],
+};
+
+const validateTaskStatusTransition = (currentStatus, nextStatus) => {
+  if (currentStatus === nextStatus) throw new Error("TASK_STATUS_UNCHANGED");
+  if (!TASK_STATUS_TRANSITIONS[currentStatus]?.includes(nextStatus)) {
+    throw new Error("INVALID_TASK_STATUS_TRANSITION");
+  }
+};
+
 const allocateTaskNumber = async (tx, projectId, projectKey) => {
   const sequence = await tx.projectTaskSequence.upsert({
     where: { projectId },
@@ -138,12 +152,13 @@ const updateTask = async ({ project, taskId, task }) => prisma.$transaction(asyn
 const updateTaskStatus = async ({ projectId, taskId, userId, workspaceRole, projectRole, status }) => {
   const task = await prisma.task.findFirst({
     where: { id: taskId, projectId },
-    select: { id: true, assigneeId: true },
+    select: { id: true, assigneeId: true, status: true },
   });
   if (!task) throw new Error("TASK_NOT_FOUND");
 
   const isManager = ["ADMIN", "PROJECT_MANAGER"].includes(workspaceRole) || projectRole === "PROJECT_MANAGER";
   if (!isManager && task.assigneeId !== userId) throw new Error("TASK_STATUS_FORBIDDEN");
+  validateTaskStatusTransition(task.status, status);
 
   return prisma.task.update({
     where: { id: taskId },
@@ -233,4 +248,5 @@ module.exports = {
   assignTask,
   deleteTask,
   convertSuggestionToTask,
+  validateTaskStatusTransition,
 };

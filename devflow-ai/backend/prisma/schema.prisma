@@ -32,6 +32,21 @@ enum ProjectRole {
   QA
 }
 
+enum RequirementStatus {
+  DRAFT
+  READY
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum RequirementPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
 model User {
   id                   String            @id @default(uuid())
   firstName            String
@@ -47,6 +62,7 @@ model User {
   workspaceMemberships WorkspaceMember[]
   createdProjects      Project[]         @relation("ProjectCreatedBy")
   projectMemberships   ProjectMember[]
+  createdRequirements  Requirement[]     @relation("RequirementCreatedBy")
 }
 
 model RefreshToken {
@@ -103,6 +119,7 @@ model Project {
   createdBy     User               @relation("ProjectCreatedBy", fields: [createdById], references: [id])
   members       ProjectMember[]
   technologies  ProjectTechnology[]
+  requirements  Requirement[]
 
   @@unique([workspaceId, key])
   @@index([workspaceId])
@@ -134,4 +151,22 @@ model ProjectTechnology {
 
   @@unique([projectId, name])
   @@index([projectId])
+}
+
+model Requirement {
+  id          String              @id @default(uuid())
+  projectId   String
+  title       String
+  description String
+  status      RequirementStatus   @default(DRAFT)
+  priority    RequirementPriority @default(MEDIUM)
+  createdById String
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy   User                @relation("RequirementCreatedBy", fields: [createdById], references: [id])
+
+  @@index([projectId])
+  @@index([projectId, status])
+  @@index([projectId, priority])
 }

@@ -11,6 +11,7 @@ const safeUserSelect = {
 const safeTaskSelect = {
   id: true,
   projectId: true,
+  sprintId: true,
   requirementId: true,
   aiSuggestedTaskId: true,
   sequenceNumber: true,

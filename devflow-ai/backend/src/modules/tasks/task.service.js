@@ -1,5 +1,6 @@
 const prisma = require("../../config/prisma");
 const { recordTaskActivity } = require("../task-activities/task-activity.service");
+const { createNotification } = require("../notifications/notification.service");
 
 const safeUserSelect = {
   id: true,
@@ -175,7 +176,7 @@ const updateTaskStatus = async ({ projectId, taskId, userId, workspaceRole, proj
   return prisma.$transaction(async (tx) => {
   const task = await tx.task.findFirst({
     where: { id: taskId, projectId },
-    select: { id: true, assigneeId: true, status: true },
+    select: { id: true, taskNumber: true, assigneeId: true, status: true },
   });
   if (!task) throw new Error("TASK_NOT_FOUND");
 
@@ -189,14 +190,27 @@ const updateTaskStatus = async ({ projectId, taskId, userId, workspaceRole, proj
     select: safeTaskSelect,
   });
   await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "STATUS_CHANGED", field: "status", oldValue: task.status, newValue: status });
-  return updatedTask;
+  const notification = task.assigneeId && task.assigneeId !== userId
+    ? await createNotification({
+      db: tx,
+      userId: task.assigneeId,
+      actorId: userId,
+      projectId,
+      type: "TASK_STATUS_CHANGED",
+      title: "Task status updated",
+      message: `${task.taskNumber} status changed to ${status}`,
+      entityType: "TASK",
+      entityId: task.id,
+    })
+    : null;
+  return { task: updatedTask, notification };
   });
 };
 
 const assignTask = async ({ project, taskId, assigneeId, userId }) => prisma.$transaction(async (tx) => {
   const existing = await tx.task.findFirst({
     where: { id: taskId, projectId: project.id },
-    select: { id: true, assigneeId: true },
+    select: { id: true, taskNumber: true, assigneeId: true },
   });
   if (!existing) throw new Error("TASK_NOT_FOUND");
   await validateTaskRelations(tx, { projectId: project.id, assigneeId });
@@ -219,7 +233,23 @@ const assignTask = async ({ project, taskId, assigneeId, userId }) => prisma.$tr
     });
   }
 
-  return updatedTask;
+  const notification = !activityValuesEqual(existing.assigneeId, assigneeId)
+    && assigneeId
+    && assigneeId !== userId
+    ? await createNotification({
+      db: tx,
+      userId: assigneeId,
+      actorId: userId,
+      projectId: project.id,
+      type: "TASK_ASSIGNED",
+      title: "Task assigned to you",
+      message: `${existing.taskNumber} has been assigned to you`,
+      entityType: "TASK",
+      entityId: existing.id,
+    })
+    : null;
+
+  return { task: updatedTask, notification };
 });
 
 const deleteTask = async ({ projectId, taskId }) => {

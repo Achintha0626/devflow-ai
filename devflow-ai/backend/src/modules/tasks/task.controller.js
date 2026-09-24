@@ -9,7 +9,7 @@ const {
   convertSuggestionToTask,
 } = require("./task.service");
 const { taskQuerySchema } = require("./task.validation");
-const { emitToProject } = require("../../socket/socket");
+const { emitToProject, emitToUser } = require("../../socket/socket");
 
 const internalError = (res, error) => {
   console.error(error);
@@ -92,7 +92,7 @@ const update = async (req, res) => {
 
 const updateStatus = async (req, res) => {
   try {
-    const task = await updateTaskStatus({
+    const result = await updateTaskStatus({
       projectId: req.project.id,
       taskId: req.params.taskId,
       userId: req.user.id,
@@ -100,7 +100,9 @@ const updateStatus = async (req, res) => {
       projectRole: req.projectMember?.role,
       status: req.body.status,
     });
+    const task = result.task;
     emitToProject(req.project.id, "task:status-changed", { projectId: req.project.id, actorId: req.user.id, task });
+    if (result.notification) emitToUser(result.notification.userId, "notification:new", result.notification);
     return res.status(200).json({ success: true, message: "Task status updated successfully", data: task });
   } catch (error) {
     return handleTaskError(res, error);
@@ -109,13 +111,15 @@ const updateStatus = async (req, res) => {
 
 const assign = async (req, res) => {
   try {
-    const task = await assignTask({
+    const result = await assignTask({
       project: req.project,
       taskId: req.params.taskId,
       assigneeId: req.body.assigneeId,
       userId: req.user.id,
     });
+    const task = result.task;
     emitToProject(req.project.id, "task:updated", { projectId: req.project.id, actorId: req.user.id, task });
+    if (result.notification) emitToUser(result.notification.userId, "notification:new", result.notification);
     return res.status(200).json({ success: true, message: "Task assignee updated successfully", data: task });
   } catch (error) {
     return handleTaskError(res, error);

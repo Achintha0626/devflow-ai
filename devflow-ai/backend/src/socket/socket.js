@@ -37,6 +37,7 @@ const authenticateSocket = async (socket, next) => {
 };
 
 const projectRoom = (projectId) => `project:${projectId}`;
+const userRoom = (userId) => `user:${userId}`;
 const isUuid = (value) => typeof value === "string"
   && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
@@ -71,6 +72,8 @@ const initializeSocket = (server) => {
 
   io.use(authenticateSocket);
   io.on("connection", (socket) => {
+    socket.join(userRoom(socket.user.id));
+
     socket.on("project:join", async (payload, acknowledge) => {
       const respond = typeof acknowledge === "function" ? acknowledge : () => {};
       if (!payload || !isUuid(payload.workspaceId) || !isUuid(payload.projectId)) {
@@ -109,8 +112,19 @@ const emitToProject = (projectId, eventName, payload) => {
   }
 };
 
+const emitToUser = (userId, eventName, payload) => {
+  if (!io || !userId) return;
+  try {
+    io.to(userRoom(userId)).emit(eventName, payload);
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") console.error("[Socket] User event emission failed", error.message);
+  }
+};
+
 module.exports = {
   initializeSocket,
   emitToProject,
+  emitToUser,
   projectRoom,
+  userRoom,
 };

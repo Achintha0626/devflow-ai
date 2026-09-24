@@ -1,5 +1,6 @@
 const prisma = require("../../config/prisma");
 const { recordTaskActivity } = require("../task-activities/task-activity.service");
+const { createNotification } = require("../notifications/notification.service");
 
 const safeUserSelect = {
   id: true,
@@ -207,13 +208,41 @@ const addTaskToSprint = async ({ projectId, sprintId, taskId, userId }) => prism
   if (task.sprintId) throw new Error(task.sprintId === sprintId ? "TASK_ALREADY_IN_SPRINT" : "TASK_ALREADY_ASSIGNED");
   const updatedTask = await tx.task.update({ where: { id: taskId }, data: { sprintId }, select: safeTaskSelect });
   await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "SPRINT_CHANGED", field: "sprintId", oldValue: null, newValue: sprintId });
-  return updatedTask;
+  const notification = updatedTask.assigneeId && updatedTask.assigneeId !== userId
+    ? await createNotification({
+      db: tx,
+      userId: updatedTask.assigneeId,
+      actorId: userId,
+      projectId,
+      type: "TASK_MOVED",
+      title: "Task moved",
+      message: `${updatedTask.taskNumber} was moved to a sprint`,
+      entityType: "TASK",
+      entityId: taskId,
+    })
+    : null;
+  return { task: updatedTask, notification };
 });
 
 const removeTaskFromSprint = async ({ projectId, sprintId, taskId, userId }) => prisma.$transaction(async (tx) => {
-  const result = await tx.task.updateMany({ where: { id: taskId, projectId, sprintId }, data: { sprintId: null } });
-  if (result.count !== 1) throw new Error("TASK_NOT_IN_SPRINT");
+  const task = await tx.task.findFirst({ where: { id: taskId, projectId, sprintId }, select: { id: true, taskNumber: true, assigneeId: true } });
+  if (!task) throw new Error("TASK_NOT_IN_SPRINT");
+  await tx.task.update({ where: { id: taskId }, data: { sprintId: null } });
   await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "SPRINT_CHANGED", field: "sprintId", oldValue: sprintId, newValue: null });
+  const notification = task.assigneeId && task.assigneeId !== userId
+    ? await createNotification({
+      db: tx,
+      userId: task.assigneeId,
+      actorId: userId,
+      projectId,
+      type: "TASK_MOVED",
+      title: "Task moved",
+      message: `${task.taskNumber} was moved to the backlog`,
+      entityType: "TASK",
+      entityId: task.id,
+    })
+    : null;
+  return { notification };
 });
 
 const moveTask = async ({ projectId, taskId, sprintId, userId }) => prisma.$transaction(async (tx) => {
@@ -225,6 +254,7 @@ const moveTask = async ({ projectId, taskId, sprintId, userId }) => prisma.$tran
       oldSprintId: task.sprintId,
       newSprintId: sprintId,
       changed: false,
+      notification: null,
     };
   }
   if (sprintId) {
@@ -233,11 +263,25 @@ const moveTask = async ({ projectId, taskId, sprintId, userId }) => prisma.$tran
   }
   const updatedTask = await tx.task.update({ where: { id: taskId }, data: { sprintId }, select: safeTaskSelect });
   await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "SPRINT_CHANGED", field: "sprintId", oldValue: task.sprintId, newValue: sprintId });
+  const notification = updatedTask.assigneeId && updatedTask.assigneeId !== userId
+    ? await createNotification({
+      db: tx,
+      userId: updatedTask.assigneeId,
+      actorId: userId,
+      projectId,
+      type: "TASK_MOVED",
+      title: "Task moved",
+      message: `${updatedTask.taskNumber} was moved to a sprint`,
+      entityType: "TASK",
+      entityId: taskId,
+    })
+    : null;
   return {
     task: updatedTask,
     oldSprintId: task.sprintId,
     newSprintId: sprintId,
     changed: true,
+    notification,
   };
 });
 

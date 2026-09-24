@@ -12,7 +12,7 @@ const {
   deleteSprint,
 } = require("./sprint.service");
 const { sprintFilterSchema, backlogFilterSchema } = require("./sprint.validation");
-const { emitToProject } = require("../../socket/socket");
+const { emitToProject, emitToUser } = require("../../socket/socket");
 
 const internalError = (res, error) => {
   console.error(error);
@@ -76,16 +76,18 @@ const lifecycle = (transition) => async (req, res) => {
 
 const addTask = async (req, res) => {
   try {
-    const task = await addTaskToSprint({ projectId: req.project.id, sprintId: req.params.sprintId, taskId: req.body.taskId, userId: req.user.id });
-    emitToProject(req.project.id, "task:sprint-changed", { projectId: req.project.id, actorId: req.user.id, task, oldSprintId: null, newSprintId: req.params.sprintId });
-    return res.status(200).json({ success: true, message: "Task added to sprint successfully", data: task });
+    const result = await addTaskToSprint({ projectId: req.project.id, sprintId: req.params.sprintId, taskId: req.body.taskId, userId: req.user.id });
+    emitToProject(req.project.id, "task:sprint-changed", { projectId: req.project.id, actorId: req.user.id, task: result.task, oldSprintId: null, newSprintId: req.params.sprintId });
+    if (result.notification) emitToUser(result.notification.userId, "notification:new", result.notification);
+    return res.status(200).json({ success: true, message: "Task added to sprint successfully", data: result.task });
   } catch (error) { return handleError(res, error); }
 };
 
 const removeTask = async (req, res) => {
   try {
-    await removeTaskFromSprint({ projectId: req.project.id, sprintId: req.params.sprintId, taskId: req.params.taskId, userId: req.user.id });
+    const result = await removeTaskFromSprint({ projectId: req.project.id, sprintId: req.params.sprintId, taskId: req.params.taskId, userId: req.user.id });
     emitToProject(req.project.id, "task:sprint-changed", { projectId: req.project.id, actorId: req.user.id, taskId: req.params.taskId, oldSprintId: req.params.sprintId, newSprintId: null });
+    if (result.notification) emitToUser(result.notification.userId, "notification:new", result.notification);
     return res.status(200).json({ success: true, message: "Task returned to backlog successfully" });
   } catch (error) { return handleError(res, error); }
 };
@@ -102,6 +104,7 @@ const move = async (req, res) => {
         newSprintId: result.newSprintId,
       });
     }
+    if (result.notification) emitToUser(result.notification.userId, "notification:new", result.notification);
     return res.status(200).json({ success: true, message: "Task sprint updated successfully", data: result.task });
   } catch (error) { return handleError(res, error); }
 };

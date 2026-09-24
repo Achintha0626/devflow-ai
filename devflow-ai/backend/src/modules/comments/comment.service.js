@@ -1,4 +1,5 @@
 const prisma = require("../../config/prisma");
+const { createNotification } = require("../notifications/notification.service");
 
 const safeAuthorSelect = {
   id: true,
@@ -37,15 +38,29 @@ const getScopedComment = ({ projectId, taskId, commentId }) => prisma.comment.fi
 const hasManagementAccess = ({ workspaceRole, projectRole }) => ["ADMIN", "PROJECT_MANAGER"].includes(workspaceRole)
   || projectRole === "PROJECT_MANAGER";
 
-const createComment = async ({ projectId, taskId, authorId, content }) => {
-  const task = await findTask(taskId, projectId);
+const createComment = async ({ projectId, taskId, authorId, content }) => prisma.$transaction(async (tx) => {
+  const task = await tx.task.findFirst({ where: { id: taskId, projectId }, select: { id: true, taskNumber: true, assigneeId: true } });
   if (!task) throw new Error("TASK_NOT_FOUND");
 
-  return prisma.comment.create({
+  const comment = await tx.comment.create({
     data: { taskId, authorId, content },
     select: safeCommentSelect,
   });
-};
+  const notification = task.assigneeId && task.assigneeId !== authorId
+    ? await createNotification({
+      db: tx,
+      userId: task.assigneeId,
+      actorId: authorId,
+      projectId,
+      type: "COMMENT_ADDED",
+      title: "New comment on your task",
+      message: `A new comment was added to ${task.taskNumber}`,
+      entityType: "TASK",
+      entityId: task.id,
+    })
+    : null;
+  return { comment, notification };
+});
 
 const listComments = async ({ projectId, taskId }) => {
   const task = await findTask(taskId, projectId);

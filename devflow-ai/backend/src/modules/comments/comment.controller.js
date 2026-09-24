@@ -5,7 +5,7 @@ const {
   updateComment,
   deleteComment,
 } = require("./comment.service");
-const { emitToProject } = require("../../socket/socket");
+const { emitToProject, emitToUser } = require("../../socket/socket");
 
 const internalError = (res, error) => {
   console.error(error);
@@ -27,13 +27,15 @@ const handleError = (res, error) => {
 
 const create = async (req, res) => {
   try {
-    const comment = await createComment({
+    const result = await createComment({
       projectId: req.project.id,
       taskId: req.params.taskId,
       authorId: req.user.id,
       content: req.body.content,
     });
+    const comment = result.comment;
     emitToProject(req.project.id, "comment:created", { projectId: req.project.id, taskId: req.params.taskId, actorId: req.user.id, comment });
+    if (result.notification) emitToUser(result.notification.userId, "notification:new", result.notification);
     return res.status(201).json({ success: true, message: "Comment created successfully", data: comment });
   } catch (error) {
     return handleError(res, error);

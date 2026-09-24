@@ -11,6 +11,7 @@ const commentRoutes = require("./modules/comments/comment.routes");
 const taskActivityRoutes = require("./modules/task-activities/task-activity.routes");
 const notificationRoutes = require("./modules/notifications/notification.routes");
 const dashboardRoutes = require("./modules/dashboard/dashboard.routes");
+const taskRiskRoutes = require("./modules/task-risk/task-risk.routes");
 
 const app = express();
 
@@ -35,5 +36,6 @@ app.use("/api/v1/workspaces", commentRoutes);
 app.use("/api/v1/workspaces", taskActivityRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 app.use("/api/v1/workspaces", dashboardRoutes);
+app.use("/api/v1/workspaces", taskRiskRoutes);
 
 module.exports = app;

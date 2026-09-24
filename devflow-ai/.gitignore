@@ -10,3 +10,15 @@ backend/.agents/
 backend/.claude/
 backend/.windsurf/
 backend/skills-lock.json
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+
+# ML generated artifacts
+ml-service/data/*.csv
+ml-service/models/*.joblib
+ml-service/models/model_metadata.json

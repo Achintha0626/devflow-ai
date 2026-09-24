@@ -9,6 +9,7 @@ const {
   convertSuggestionToTask,
 } = require("./task.service");
 const { taskQuerySchema } = require("./task.validation");
+const { emitToProject } = require("../../socket/socket");
 
 const internalError = (res, error) => {
   console.error(error);
@@ -48,6 +49,7 @@ const handleTaskError = (res, error) => {
 const create = async (req, res) => {
   try {
     const task = await createTask({ project: req.project, userId: req.user.id, task: req.body });
+    emitToProject(req.project.id, "task:created", { projectId: req.project.id, actorId: req.user.id, task });
     return res.status(201).json({ success: true, message: "Task created successfully", data: task });
   } catch (error) {
     return handleTaskError(res, error);
@@ -81,6 +83,7 @@ const getById = async (req, res) => {
 const update = async (req, res) => {
   try {
     const task = await updateTask({ project: req.project, taskId: req.params.taskId, userId: req.user.id, task: req.body });
+    emitToProject(req.project.id, "task:updated", { projectId: req.project.id, actorId: req.user.id, task });
     return res.status(200).json({ success: true, message: "Task updated successfully", data: task });
   } catch (error) {
     return handleTaskError(res, error);
@@ -97,6 +100,7 @@ const updateStatus = async (req, res) => {
       projectRole: req.projectMember?.role,
       status: req.body.status,
     });
+    emitToProject(req.project.id, "task:status-changed", { projectId: req.project.id, actorId: req.user.id, task });
     return res.status(200).json({ success: true, message: "Task status updated successfully", data: task });
   } catch (error) {
     return handleTaskError(res, error);
@@ -111,6 +115,7 @@ const assign = async (req, res) => {
       assigneeId: req.body.assigneeId,
       userId: req.user.id,
     });
+    emitToProject(req.project.id, "task:updated", { projectId: req.project.id, actorId: req.user.id, task });
     return res.status(200).json({ success: true, message: "Task assignee updated successfully", data: task });
   } catch (error) {
     return handleTaskError(res, error);
@@ -135,6 +140,7 @@ const convertSuggestion = async (req, res) => {
       userId: req.user.id,
       task: req.body,
     });
+    emitToProject(req.project.id, "task:created", { projectId: req.project.id, actorId: req.user.id, task });
     return res.status(201).json({ success: true, message: "AI suggestion converted to task successfully", data: task });
   } catch (error) {
     return handleTaskError(res, error);

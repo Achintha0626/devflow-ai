@@ -10,6 +10,7 @@ const kanbanRoutes = require("./modules/kanban/kanban.routes");
 const commentRoutes = require("./modules/comments/comment.routes");
 const taskActivityRoutes = require("./modules/task-activities/task-activity.routes");
 const notificationRoutes = require("./modules/notifications/notification.routes");
+const dashboardRoutes = require("./modules/dashboard/dashboard.routes");
 
 const app = express();
 
@@ -33,5 +34,6 @@ app.use("/api/v1/workspaces", kanbanRoutes);
 app.use("/api/v1/workspaces", commentRoutes);
 app.use("/api/v1/workspaces", taskActivityRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
+app.use("/api/v1/workspaces", dashboardRoutes);
 
 module.exports = app;

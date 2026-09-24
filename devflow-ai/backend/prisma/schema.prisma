@@ -297,6 +297,8 @@ model Task {
   type              SuggestedTaskType
   priority          RequirementPriority
   status            TaskStatus          @default(TODO)
+  startedAt         DateTime?
+  completedAt       DateTime?
   storyPoints       Int?
   assigneeId        String?
   createdById       String

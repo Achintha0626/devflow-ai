@@ -17,6 +17,8 @@ const safeTaskSelect = {
   priority: true,
   type: true,
   storyPoints: true,
+  startedAt: true,
+  completedAt: true,
   dueDate: true,
   sprintId: true,
   requirementId: true,

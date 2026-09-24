@@ -20,6 +20,8 @@ const safeTaskSelect = {
   type: true,
   priority: true,
   status: true,
+  startedAt: true,
+  completedAt: true,
   storyPoints: true,
   assigneeId: true,
   dueDate: true,

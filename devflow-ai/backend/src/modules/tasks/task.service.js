@@ -23,6 +23,8 @@ const safeTaskSelect = {
   type: true,
   priority: true,
   status: true,
+  startedAt: true,
+  completedAt: true,
   storyPoints: true,
   assigneeId: true,
   createdById: true,
@@ -176,7 +178,7 @@ const updateTaskStatus = async ({ projectId, taskId, userId, workspaceRole, proj
   return prisma.$transaction(async (tx) => {
   const task = await tx.task.findFirst({
     where: { id: taskId, projectId },
-    select: { id: true, taskNumber: true, assigneeId: true, status: true },
+    select: { id: true, taskNumber: true, assigneeId: true, status: true, startedAt: true, completedAt: true },
   });
   if (!task) throw new Error("TASK_NOT_FOUND");
 
@@ -184,9 +186,15 @@ const updateTaskStatus = async ({ projectId, taskId, userId, workspaceRole, proj
   if (!isManager && task.assigneeId !== userId) throw new Error("TASK_STATUS_FORBIDDEN");
   validateTaskStatusTransition(task.status, status);
 
+  const now = new Date();
+  const lifecycleData = {
+    ...(status === "IN_PROGRESS" && !task.startedAt ? { startedAt: now } : {}),
+    ...(status === "DONE" ? { completedAt: now } : {}),
+    ...(task.status === "DONE" && status !== "DONE" ? { completedAt: null } : {}),
+  };
   const updatedTask = await tx.task.update({
     where: { id: taskId },
-    data: { status },
+    data: { status, ...lifecycleData },
     select: safeTaskSelect,
   });
   await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "STATUS_CHANGED", field: "status", oldValue: task.status, newValue: status });

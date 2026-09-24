@@ -8,6 +8,7 @@ const taskRoutes = require("./modules/tasks/task.routes");
 const sprintRoutes = require("./modules/sprint/sprint.routes");
 const kanbanRoutes = require("./modules/kanban/kanban.routes");
 const commentRoutes = require("./modules/comments/comment.routes");
+const taskActivityRoutes = require("./modules/task-activities/task-activity.routes");
 
 const app = express();
 
@@ -29,5 +30,6 @@ app.use("/api/v1/workspaces", taskRoutes);
 app.use("/api/v1/workspaces", sprintRoutes);
 app.use("/api/v1/workspaces", kanbanRoutes);
 app.use("/api/v1/workspaces", commentRoutes);
+app.use("/api/v1/workspaces", taskActivityRoutes);
 
 module.exports = app;

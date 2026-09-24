@@ -5,6 +5,7 @@ const {
   updateComment,
   deleteComment,
 } = require("./comment.service");
+const { emitToProject } = require("../../socket/socket");
 
 const internalError = (res, error) => {
   console.error(error);
@@ -32,6 +33,7 @@ const create = async (req, res) => {
       authorId: req.user.id,
       content: req.body.content,
     });
+    emitToProject(req.project.id, "comment:created", { projectId: req.project.id, taskId: req.params.taskId, actorId: req.user.id, comment });
     return res.status(201).json({ success: true, message: "Comment created successfully", data: comment });
   } catch (error) {
     return handleError(res, error);
@@ -72,6 +74,7 @@ const update = async (req, res) => {
       projectRole: req.projectMember?.role,
       content: req.body.content,
     });
+    emitToProject(req.project.id, "comment:updated", { projectId: req.project.id, taskId: req.params.taskId, actorId: req.user.id, comment });
     return res.status(200).json({ success: true, message: "Comment updated successfully", data: comment });
   } catch (error) {
     return handleError(res, error);
@@ -88,6 +91,7 @@ const remove = async (req, res) => {
       workspaceRole: req.workspaceMember.role,
       projectRole: req.projectMember?.role,
     });
+    emitToProject(req.project.id, "comment:deleted", { projectId: req.project.id, taskId: req.params.taskId, commentId: req.params.commentId, actorId: req.user.id });
     return res.status(200).json({ success: true, message: "Comment deleted successfully" });
   } catch (error) {
     return handleError(res, error);

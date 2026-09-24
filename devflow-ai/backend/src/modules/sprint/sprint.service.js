@@ -219,14 +219,26 @@ const removeTaskFromSprint = async ({ projectId, sprintId, taskId, userId }) => 
 const moveTask = async ({ projectId, taskId, sprintId, userId }) => prisma.$transaction(async (tx) => {
   const task = await tx.task.findFirst({ where: { id: taskId, projectId }, select: { id: true, sprintId: true } });
   if (!task) throw new Error("TASK_NOT_FOUND");
-  if (task.sprintId === sprintId) return tx.task.findUnique({ where: { id: taskId }, select: safeTaskSelect });
+  if (task.sprintId === sprintId) {
+    return {
+      task: await tx.task.findUnique({ where: { id: taskId }, select: safeTaskSelect }),
+      oldSprintId: task.sprintId,
+      newSprintId: sprintId,
+      changed: false,
+    };
+  }
   if (sprintId) {
     const sprint = await tx.sprint.findFirst({ where: { id: sprintId, projectId }, select: { id: true } });
     if (!sprint) throw new Error("SPRINT_NOT_FOUND");
   }
   const updatedTask = await tx.task.update({ where: { id: taskId }, data: { sprintId }, select: safeTaskSelect });
   await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "SPRINT_CHANGED", field: "sprintId", oldValue: task.sprintId, newValue: sprintId });
-  return updatedTask;
+  return {
+    task: updatedTask,
+    oldSprintId: task.sprintId,
+    newSprintId: sprintId,
+    changed: true,
+  };
 });
 
 const getBacklog = async ({ projectId, filters }) => prisma.task.findMany({

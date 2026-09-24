@@ -1,4 +1,5 @@
 const prisma = require("../../config/prisma");
+const { recordTaskActivity } = require("../task-activities/task-activity.service");
 
 const safeUserSelect = {
   id: true,
@@ -48,6 +49,12 @@ const validateTaskStatusTransition = (currentStatus, nextStatus) => {
   }
 };
 
+const activityValuesEqual = (left, right) => {
+  if (left === null || right === null || left === undefined || right === undefined) return left === right;
+  if (left instanceof Date || right instanceof Date) return new Date(left).getTime() === new Date(right).getTime();
+  return left === right;
+};
+
 const allocateTaskNumber = async (tx, projectId, projectKey) => {
   const sequence = await tx.projectTaskSequence.upsert({
     where: { projectId },
@@ -94,7 +101,7 @@ const createTask = async ({ project, userId, task }) => withSequenceRetry(() => 
     assigneeId: task.assigneeId,
   });
   const number = await allocateTaskNumber(tx, project.id, project.key);
-  return tx.task.create({
+  const createdTask = await tx.task.create({
     data: {
       projectId: project.id,
       ...number,
@@ -103,6 +110,8 @@ const createTask = async ({ project, userId, task }) => withSequenceRetry(() => 
     },
     select: safeTaskSelect,
   });
+  await recordTaskActivity({ db: tx, taskId: createdTask.id, actorId: userId, type: "TASK_CREATED" });
+  return createdTask;
 }));
 
 const listTasks = async ({ projectId, filters }) => prisma.task.findMany({
@@ -129,10 +138,10 @@ const getTask = async ({ projectId, taskId }) => prisma.task.findFirst({
   select: safeTaskSelect,
 });
 
-const updateTask = async ({ project, taskId, task }) => prisma.$transaction(async (tx) => {
+const updateTask = async ({ project, taskId, userId, task }) => prisma.$transaction(async (tx) => {
   const existing = await tx.task.findFirst({
     where: { id: taskId, projectId: project.id },
-    select: { id: true },
+    select: { id: true, title: true, description: true, type: true, priority: true, storyPoints: true, requirementId: true, assigneeId: true, dueDate: true },
   });
   if (!existing) throw new Error("TASK_NOT_FOUND");
 
@@ -142,15 +151,29 @@ const updateTask = async ({ project, taskId, task }) => prisma.$transaction(asyn
     assigneeId: task.assigneeId,
   });
 
-  return tx.task.update({
+  const updatedTask = await tx.task.update({
     where: { id: taskId },
     data: task,
     select: safeTaskSelect,
   });
+  const trackedFields = ["title", "description", "type", "storyPoints", "dueDate", "requirementId"];
+  for (const field of trackedFields) {
+    if (task[field] !== undefined && !activityValuesEqual(task[field], existing[field])) {
+      await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "TASK_UPDATED", field, oldValue: existing[field], newValue: task[field] });
+    }
+  }
+  if (task.priority !== undefined && !activityValuesEqual(task.priority, existing.priority)) {
+    await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "PRIORITY_CHANGED", field: "priority", oldValue: existing.priority, newValue: task.priority });
+  }
+  if (task.assigneeId !== undefined && !activityValuesEqual(task.assigneeId, existing.assigneeId)) {
+    await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "ASSIGNEE_CHANGED", field: "assigneeId", oldValue: existing.assigneeId, newValue: task.assigneeId });
+  }
+  return updatedTask;
 });
 
 const updateTaskStatus = async ({ projectId, taskId, userId, workspaceRole, projectRole, status }) => {
-  const task = await prisma.task.findFirst({
+  return prisma.$transaction(async (tx) => {
+  const task = await tx.task.findFirst({
     where: { id: taskId, projectId },
     select: { id: true, assigneeId: true, status: true },
   });
@@ -160,26 +183,43 @@ const updateTaskStatus = async ({ projectId, taskId, userId, workspaceRole, proj
   if (!isManager && task.assigneeId !== userId) throw new Error("TASK_STATUS_FORBIDDEN");
   validateTaskStatusTransition(task.status, status);
 
-  return prisma.task.update({
+  const updatedTask = await tx.task.update({
     where: { id: taskId },
     data: { status },
     select: safeTaskSelect,
   });
+  await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "STATUS_CHANGED", field: "status", oldValue: task.status, newValue: status });
+  return updatedTask;
+  });
 };
 
-const assignTask = async ({ project, taskId, assigneeId }) => prisma.$transaction(async (tx) => {
+const assignTask = async ({ project, taskId, assigneeId, userId }) => prisma.$transaction(async (tx) => {
   const existing = await tx.task.findFirst({
     where: { id: taskId, projectId: project.id },
-    select: { id: true },
+    select: { id: true, assigneeId: true },
   });
   if (!existing) throw new Error("TASK_NOT_FOUND");
   await validateTaskRelations(tx, { projectId: project.id, assigneeId });
 
-  return tx.task.update({
+  const updatedTask = await tx.task.update({
     where: { id: taskId },
     data: { assigneeId },
     select: safeTaskSelect,
   });
+
+  if (!activityValuesEqual(existing.assigneeId, assigneeId)) {
+    await recordTaskActivity({
+      db: tx,
+      taskId,
+      actorId: userId,
+      type: "ASSIGNEE_CHANGED",
+      field: "assigneeId",
+      oldValue: existing.assigneeId,
+      newValue: assigneeId,
+    });
+  }
+
+  return updatedTask;
 });
 
 const deleteTask = async ({ projectId, taskId }) => {
@@ -219,7 +259,7 @@ const convertSuggestionToTask = async ({ project, requirementId, suggestionId, u
   });
   const number = await allocateTaskNumber(tx, project.id, project.key);
 
-  return tx.task.create({
+  const createdTask = await tx.task.create({
     data: {
       projectId: project.id,
       requirementId,
@@ -237,6 +277,8 @@ const convertSuggestionToTask = async ({ project, requirementId, suggestionId, u
     },
     select: safeTaskSelect,
   });
+  await recordTaskActivity({ db: tx, taskId: createdTask.id, actorId: userId, type: "TASK_CREATED" });
+  return createdTask;
 }));
 
 module.exports = {

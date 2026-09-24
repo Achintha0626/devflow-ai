@@ -75,21 +75,21 @@ const lifecycle = (transition) => async (req, res) => {
 
 const addTask = async (req, res) => {
   try {
-    const task = await addTaskToSprint({ projectId: req.project.id, sprintId: req.params.sprintId, taskId: req.body.taskId });
+    const task = await addTaskToSprint({ projectId: req.project.id, sprintId: req.params.sprintId, taskId: req.body.taskId, userId: req.user.id });
     return res.status(200).json({ success: true, message: "Task added to sprint successfully", data: task });
   } catch (error) { return handleError(res, error); }
 };
 
 const removeTask = async (req, res) => {
   try {
-    await removeTaskFromSprint({ projectId: req.project.id, sprintId: req.params.sprintId, taskId: req.params.taskId });
+    await removeTaskFromSprint({ projectId: req.project.id, sprintId: req.params.sprintId, taskId: req.params.taskId, userId: req.user.id });
     return res.status(200).json({ success: true, message: "Task returned to backlog successfully" });
   } catch (error) { return handleError(res, error); }
 };
 
 const move = async (req, res) => {
   try {
-    const task = await moveTask({ projectId: req.project.id, taskId: req.params.taskId, sprintId: req.body.sprintId });
+    const task = await moveTask({ projectId: req.project.id, taskId: req.params.taskId, sprintId: req.body.sprintId, userId: req.user.id });
     return res.status(200).json({ success: true, message: "Task sprint updated successfully", data: task });
   } catch (error) { return handleError(res, error); }
 };

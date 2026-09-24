@@ -80,7 +80,7 @@ const getById = async (req, res) => {
 
 const update = async (req, res) => {
   try {
-    const task = await updateTask({ project: req.project, taskId: req.params.taskId, task: req.body });
+    const task = await updateTask({ project: req.project, taskId: req.params.taskId, userId: req.user.id, task: req.body });
     return res.status(200).json({ success: true, message: "Task updated successfully", data: task });
   } catch (error) {
     return handleTaskError(res, error);
@@ -105,7 +105,12 @@ const updateStatus = async (req, res) => {
 
 const assign = async (req, res) => {
   try {
-    const task = await assignTask({ project: req.project, taskId: req.params.taskId, assigneeId: req.body.assigneeId });
+    const task = await assignTask({
+      project: req.project,
+      taskId: req.params.taskId,
+      assigneeId: req.body.assigneeId,
+      userId: req.user.id,
+    });
     return res.status(200).json({ success: true, message: "Task assignee updated successfully", data: task });
   } catch (error) {
     return handleTaskError(res, error);

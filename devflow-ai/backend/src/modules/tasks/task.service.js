@@ -1,6 +1,7 @@
 const prisma = require("../../config/prisma");
 const { recordTaskActivity } = require("../task-activities/task-activity.service");
 const { createNotification } = require("../notifications/notification.service");
+const { enqueueTaskRiskEvaluation } = require("../../queues/task-risk.queue");
 
 const safeUserSelect = {
   id: true,
@@ -141,124 +142,79 @@ const getTask = async ({ projectId, taskId }) => prisma.task.findFirst({
   select: safeTaskSelect,
 });
 
-const updateTask = async ({ project, taskId, userId, task }) => prisma.$transaction(async (tx) => {
-  const existing = await tx.task.findFirst({
-    where: { id: taskId, projectId: project.id },
-    select: { id: true, title: true, description: true, type: true, priority: true, storyPoints: true, requirementId: true, assigneeId: true, dueDate: true },
-  });
-  if (!existing) throw new Error("TASK_NOT_FOUND");
+const updateTask = async ({ project, taskId, userId, task }) => {
+  let riskFieldsChanged = false;
+  const result = await prisma.$transaction(async (tx) => {
+    const existing = await tx.task.findFirst({
+      where: { id: taskId, projectId: project.id },
+      select: { id: true, title: true, description: true, type: true, priority: true, storyPoints: true, requirementId: true, assigneeId: true, dueDate: true },
+    });
+    if (!existing) throw new Error("TASK_NOT_FOUND");
 
-  await validateTaskRelations(tx, {
-    projectId: project.id,
-    requirementId: task.requirementId,
-    assigneeId: task.assigneeId,
-  });
+    await validateTaskRelations(tx, {
+      projectId: project.id,
+      requirementId: task.requirementId,
+      assigneeId: task.assigneeId,
+    });
 
-  const updatedTask = await tx.task.update({
-    where: { id: taskId },
-    data: task,
-    select: safeTaskSelect,
-  });
-  const trackedFields = ["title", "description", "type", "storyPoints", "dueDate", "requirementId"];
-  for (const field of trackedFields) {
-    if (task[field] !== undefined && !activityValuesEqual(task[field], existing[field])) {
-      await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "TASK_UPDATED", field, oldValue: existing[field], newValue: task[field] });
+    const updatedTask = await tx.task.update({ where: { id: taskId }, data: task, select: safeTaskSelect });
+    const trackedFields = ["title", "description", "type", "storyPoints", "dueDate", "requirementId"];
+    for (const field of trackedFields) {
+      if (task[field] !== undefined && !activityValuesEqual(task[field], existing[field])) {
+        await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "TASK_UPDATED", field, oldValue: existing[field], newValue: task[field] });
+      }
     }
-  }
-  if (task.priority !== undefined && !activityValuesEqual(task.priority, existing.priority)) {
-    await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "PRIORITY_CHANGED", field: "priority", oldValue: existing.priority, newValue: task.priority });
-  }
-  if (task.assigneeId !== undefined && !activityValuesEqual(task.assigneeId, existing.assigneeId)) {
-    await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "ASSIGNEE_CHANGED", field: "assigneeId", oldValue: existing.assigneeId, newValue: task.assigneeId });
-  }
-  return updatedTask;
-});
-
-const updateTaskStatus = async ({ projectId, taskId, userId, workspaceRole, projectRole, status }) => {
-  return prisma.$transaction(async (tx) => {
-  const task = await tx.task.findFirst({
-    where: { id: taskId, projectId },
-    select: { id: true, taskNumber: true, assigneeId: true, status: true, startedAt: true, completedAt: true },
+    if (task.priority !== undefined && !activityValuesEqual(task.priority, existing.priority)) {
+      await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "PRIORITY_CHANGED", field: "priority", oldValue: existing.priority, newValue: task.priority });
+    }
+    if (task.assigneeId !== undefined && !activityValuesEqual(task.assigneeId, existing.assigneeId)) {
+      await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "ASSIGNEE_CHANGED", field: "assigneeId", oldValue: existing.assigneeId, newValue: task.assigneeId });
+    }
+    riskFieldsChanged = ["priority", "storyPoints", "dueDate"].some((field) => task[field] !== undefined && !activityValuesEqual(task[field], existing[field]));
+    return updatedTask;
   });
-  if (!task) throw new Error("TASK_NOT_FOUND");
 
-  const isManager = ["ADMIN", "PROJECT_MANAGER"].includes(workspaceRole) || projectRole === "PROJECT_MANAGER";
-  if (!isManager && task.assigneeId !== userId) throw new Error("TASK_STATUS_FORBIDDEN");
-  validateTaskStatusTransition(task.status, status);
-
-  const now = new Date();
-  const lifecycleData = {
-    ...(status === "IN_PROGRESS" && !task.startedAt ? { startedAt: now } : {}),
-    ...(status === "DONE" ? { completedAt: now } : {}),
-    ...(task.status === "DONE" && status !== "DONE" ? { completedAt: null } : {}),
-  };
-  const updatedTask = await tx.task.update({
-    where: { id: taskId },
-    data: { status, ...lifecycleData },
-    select: safeTaskSelect,
-  });
-  await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "STATUS_CHANGED", field: "status", oldValue: task.status, newValue: status });
-  const notification = task.assigneeId && task.assigneeId !== userId
-    ? await createNotification({
-      db: tx,
-      userId: task.assigneeId,
-      actorId: userId,
-      projectId,
-      type: "TASK_STATUS_CHANGED",
-      title: "Task status updated",
-      message: `${task.taskNumber} status changed to ${status}`,
-      entityType: "TASK",
-      entityId: task.id,
-    })
-    : null;
-  return { task: updatedTask, notification };
-  });
+  if (riskFieldsChanged) await enqueueTaskRiskEvaluation({ workspaceId: project.workspaceId, projectId: project.id, taskId, reason: "RISK_FIELDS_CHANGED" });
+  return result;
 };
 
-const assignTask = async ({ project, taskId, assigneeId, userId }) => prisma.$transaction(async (tx) => {
-  const existing = await tx.task.findFirst({
-    where: { id: taskId, projectId: project.id },
-    select: { id: true, taskNumber: true, assigneeId: true },
+const updateTaskStatus = async ({ workspaceId, projectId, taskId, userId, workspaceRole, projectRole, status }) => {
+  const result = await prisma.$transaction(async (tx) => {
+    const task = await tx.task.findFirst({ where: { id: taskId, projectId }, select: { id: true, taskNumber: true, assigneeId: true, status: true, startedAt: true, completedAt: true } });
+    if (!task) throw new Error("TASK_NOT_FOUND");
+    const isManager = ["ADMIN", "PROJECT_MANAGER"].includes(workspaceRole) || projectRole === "PROJECT_MANAGER";
+    if (!isManager && task.assigneeId !== userId) throw new Error("TASK_STATUS_FORBIDDEN");
+    validateTaskStatusTransition(task.status, status);
+    const now = new Date();
+    const lifecycleData = {
+      ...(status === "IN_PROGRESS" && !task.startedAt ? { startedAt: now } : {}),
+      ...(status === "DONE" ? { completedAt: now } : {}),
+      ...(task.status === "DONE" && status !== "DONE" ? { completedAt: null } : {}),
+    };
+    const updatedTask = await tx.task.update({ where: { id: taskId }, data: { status, ...lifecycleData }, select: safeTaskSelect });
+    await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "STATUS_CHANGED", field: "status", oldValue: task.status, newValue: status });
+    const notification = task.assigneeId && task.assigneeId !== userId ? await createNotification({ db: tx, userId: task.assigneeId, actorId: userId, projectId, type: "TASK_STATUS_CHANGED", title: "Task status updated", message: `${task.taskNumber} status changed to ${status}`, entityType: "TASK", entityId: task.id }) : null;
+    return { task: updatedTask, notification };
   });
-  if (!existing) throw new Error("TASK_NOT_FOUND");
-  await validateTaskRelations(tx, { projectId: project.id, assigneeId });
+  if (status === "IN_PROGRESS") await enqueueTaskRiskEvaluation({ workspaceId, projectId, taskId, reason: "TASK_STARTED" });
+  return result;
+};
 
-  const updatedTask = await tx.task.update({
-    where: { id: taskId },
-    data: { assigneeId },
-    select: safeTaskSelect,
+const assignTask = async ({ project, taskId, assigneeId, userId }) => {
+  let assigneeChanged = false;
+  const result = await prisma.$transaction(async (tx) => {
+    const existing = await tx.task.findFirst({ where: { id: taskId, projectId: project.id }, select: { id: true, taskNumber: true, assigneeId: true } });
+    if (!existing) throw new Error("TASK_NOT_FOUND");
+    await validateTaskRelations(tx, { projectId: project.id, assigneeId });
+    assigneeChanged = !activityValuesEqual(existing.assigneeId, assigneeId);
+    const updatedTask = await tx.task.update({ where: { id: taskId }, data: { assigneeId }, select: safeTaskSelect });
+    if (assigneeChanged) await recordTaskActivity({ db: tx, taskId, actorId: userId, type: "ASSIGNEE_CHANGED", field: "assigneeId", oldValue: existing.assigneeId, newValue: assigneeId });
+    const notification = assigneeChanged && assigneeId && assigneeId !== userId ? await createNotification({ db: tx, userId: assigneeId, actorId: userId, projectId: project.id, type: "TASK_ASSIGNED", title: "Task assigned to you", message: `${existing.taskNumber} has been assigned to you`, entityType: "TASK", entityId: existing.id }) : null;
+    return { task: updatedTask, notification };
   });
-
-  if (!activityValuesEqual(existing.assigneeId, assigneeId)) {
-    await recordTaskActivity({
-      db: tx,
-      taskId,
-      actorId: userId,
-      type: "ASSIGNEE_CHANGED",
-      field: "assigneeId",
-      oldValue: existing.assigneeId,
-      newValue: assigneeId,
-    });
-  }
-
-  const notification = !activityValuesEqual(existing.assigneeId, assigneeId)
-    && assigneeId
-    && assigneeId !== userId
-    ? await createNotification({
-      db: tx,
-      userId: assigneeId,
-      actorId: userId,
-      projectId: project.id,
-      type: "TASK_ASSIGNED",
-      title: "Task assigned to you",
-      message: `${existing.taskNumber} has been assigned to you`,
-      entityType: "TASK",
-      entityId: existing.id,
-    })
-    : null;
-
-  return { task: updatedTask, notification };
-});
+  if (assigneeChanged) await enqueueTaskRiskEvaluation({ workspaceId: project.workspaceId, projectId: project.id, taskId, reason: "ASSIGNEE_CHANGED" });
+  return result;
+};
 
 const deleteTask = async ({ projectId, taskId }) => {
   const result = await prisma.task.deleteMany({ where: { id: taskId, projectId } });

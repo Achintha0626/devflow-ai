@@ -93,6 +93,7 @@ const update = async (req, res) => {
 const updateStatus = async (req, res) => {
   try {
     const result = await updateTaskStatus({
+      workspaceId: req.project.workspaceId,
       projectId: req.project.id,
       taskId: req.params.taskId,
       userId: req.user.id,

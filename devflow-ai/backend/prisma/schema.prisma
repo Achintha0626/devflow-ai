@@ -313,6 +313,7 @@ model Task {
   createdBy         User                @relation("TaskCreatedBy", fields: [createdById], references: [id])
   comments          Comment[]
   activities        TaskActivity[]
+  riskPredictions   TaskRiskPrediction[]
 
   @@unique([projectId, sequenceNumber])
   @@unique([projectId, taskNumber])
@@ -374,6 +375,22 @@ model TaskActivity {
   @@index([taskId, createdAt])
   @@index([actorId])
   @@index([type])
+}
+
+model TaskRiskPrediction {
+  id               String   @id @default(uuid())
+  taskId           String
+  delayProbability Float
+  riskLevel        String
+  modelVersion     String
+  featureSnapshot  Json
+  predictedAt      DateTime @default(now())
+  task             Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([taskId, predictedAt])
+  @@index([riskLevel])
+  @@index([predictedAt])
 }
 
 model Notification {

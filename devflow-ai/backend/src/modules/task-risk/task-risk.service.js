@@ -146,6 +146,22 @@ const predictTaskRisk = async ({ workspaceId, projectId, taskId }) => {
   const now = new Date();
   const features = await buildFeaturePayload({ projectId, task, now });
   const prediction = await requestPrediction(features);
+  const persistedPrediction = await prisma.taskRiskPrediction.create({
+    data: {
+      taskId: task.id,
+      delayProbability: prediction.delayProbability,
+      riskLevel: prediction.riskLevel,
+      modelVersion: prediction.modelVersion,
+      featureSnapshot: features,
+      predictedAt: now,
+    },
+    select: {
+      id: true,
+      delayProbability: true,
+      riskLevel: true,
+      modelVersion: true,
+    },
+  });
 
   return {
     task: {
@@ -153,12 +169,38 @@ const predictTaskRisk = async ({ workspaceId, projectId, taskId }) => {
       taskNumber: task.taskNumber,
       title: task.title,
     },
-    prediction,
+    prediction: persistedPrediction,
     features,
     predictedAt: now.toISOString(),
   };
 };
 
+const getTaskRiskHistory = async ({ workspaceId, projectId, taskId }) => {
+  const task = await getTaskContext({ workspaceId, projectId, taskId });
+  const predictions = await prisma.taskRiskPrediction.findMany({
+    where: { taskId: task.id },
+    orderBy: [{ predictedAt: "desc" }, { id: "desc" }],
+    select: {
+      id: true,
+      delayProbability: true,
+      riskLevel: true,
+      modelVersion: true,
+      featureSnapshot: true,
+      predictedAt: true,
+    },
+  });
+
+  return {
+    task: {
+      id: task.id,
+      taskNumber: task.taskNumber,
+      title: task.title,
+    },
+    predictions,
+  };
+};
+
 module.exports = {
   predictTaskRisk,
+  getTaskRiskHistory,
 };

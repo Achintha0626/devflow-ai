@@ -62,7 +62,7 @@ const getById = async (req, res) => {
 
 const update = async (req, res) => {
   try {
-    return res.status(200).json({ success: true, message: "Sprint updated successfully", data: await updateSprint({ projectId: req.project.id, sprintId: req.params.sprintId, ...req.body }) });
+    return res.status(200).json({ success: true, message: "Sprint updated successfully", data: await updateSprint({ workspaceId: req.project.workspaceId, projectId: req.project.id, sprintId: req.params.sprintId, ...req.body }) });
   } catch (error) { return handleError(res, error); }
 };
 
@@ -76,7 +76,7 @@ const lifecycle = (transition) => async (req, res) => {
 
 const addTask = async (req, res) => {
   try {
-    const result = await addTaskToSprint({ projectId: req.project.id, sprintId: req.params.sprintId, taskId: req.body.taskId, userId: req.user.id });
+    const result = await addTaskToSprint({ workspaceId: req.project.workspaceId, projectId: req.project.id, sprintId: req.params.sprintId, taskId: req.body.taskId, userId: req.user.id });
     emitToProject(req.project.id, "task:sprint-changed", { projectId: req.project.id, actorId: req.user.id, task: result.task, oldSprintId: null, newSprintId: req.params.sprintId });
     if (result.notification) emitToUser(result.notification.userId, "notification:new", result.notification);
     return res.status(200).json({ success: true, message: "Task added to sprint successfully", data: result.task });
@@ -85,7 +85,7 @@ const addTask = async (req, res) => {
 
 const removeTask = async (req, res) => {
   try {
-    const result = await removeTaskFromSprint({ projectId: req.project.id, sprintId: req.params.sprintId, taskId: req.params.taskId, userId: req.user.id });
+    const result = await removeTaskFromSprint({ workspaceId: req.project.workspaceId, projectId: req.project.id, sprintId: req.params.sprintId, taskId: req.params.taskId, userId: req.user.id });
     emitToProject(req.project.id, "task:sprint-changed", { projectId: req.project.id, actorId: req.user.id, taskId: req.params.taskId, oldSprintId: req.params.sprintId, newSprintId: null });
     if (result.notification) emitToUser(result.notification.userId, "notification:new", result.notification);
     return res.status(200).json({ success: true, message: "Task returned to backlog successfully" });
@@ -94,7 +94,7 @@ const removeTask = async (req, res) => {
 
 const move = async (req, res) => {
   try {
-    const result = await moveTask({ projectId: req.project.id, taskId: req.params.taskId, sprintId: req.body.sprintId, userId: req.user.id });
+    const result = await moveTask({ workspaceId: req.project.workspaceId, projectId: req.project.id, taskId: req.params.taskId, sprintId: req.body.sprintId, userId: req.user.id });
     if (result.changed) {
       emitToProject(req.project.id, "task:sprint-changed", {
         projectId: req.project.id,

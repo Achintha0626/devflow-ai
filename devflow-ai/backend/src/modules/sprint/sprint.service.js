@@ -1,6 +1,7 @@
 const prisma = require("../../config/prisma");
 const { recordTaskActivity } = require("../task-activities/task-activity.service");
 const { createNotification } = require("../notifications/notification.service");
+const { enqueueTaskRiskEvaluation } = require("../../queues/task-risk.queue");
 
 const safeUserSelect = {
   id: true,
@@ -141,7 +142,9 @@ const getSprint = async ({ projectId, sprintId }) => {
   return { ...sprint, stats: await calculateStats(prisma, projectId, sprintId) };
 };
 
-const updateSprint = async ({ projectId, sprintId, name, goal, startDate, endDate }) => prisma.$transaction(async (tx) => {
+const updateSprint = async ({ workspaceId, projectId, sprintId, name, goal, startDate, endDate }) => {
+  let endDateChanged = false;
+  const result = await prisma.$transaction(async (tx) => {
   const current = await tx.sprint.findFirst({
     where: { id: sprintId, projectId },
     select: { id: true, startDate: true, endDate: true },
@@ -157,8 +160,19 @@ const updateSprint = async ({ projectId, sprintId, name, goal, startDate, endDat
   if (goal !== undefined) data.goal = goal;
   if (startDate !== undefined) data.startDate = startDate;
   if (endDate !== undefined) data.endDate = endDate;
+  endDateChanged = endDate !== undefined && current.endDate?.getTime() !== endDate?.getTime();
   return tx.sprint.update({ where: { id: sprintId }, data, select: safeSprintSelect });
-});
+  });
+
+  if (endDateChanged) {
+    const activeTasks = await prisma.task.findMany({
+      where: { projectId, sprintId, status: { in: ["TODO", "IN_PROGRESS", "IN_REVIEW"] } },
+      select: { id: true },
+    });
+    await Promise.allSettled(activeTasks.map((task) => enqueueTaskRiskEvaluation({ workspaceId, projectId, taskId: task.id, reason: "SPRINT_END_DATE_CHANGED" })));
+  }
+  return result;
+};
 
 const transitionSprint = async ({ projectId, sprintId, transition }) => prisma.$transaction(async (tx) => {
   const sprint = await tx.sprint.findFirst({
@@ -202,7 +216,8 @@ const transitionSprint = async ({ projectId, sprintId, transition }) => prisma.$
   throw error;
 });
 
-const addTaskToSprint = async ({ projectId, sprintId, taskId, userId }) => prisma.$transaction(async (tx) => {
+const addTaskToSprint = async ({ workspaceId, projectId, sprintId, taskId, userId }) => {
+  const result = await prisma.$transaction(async (tx) => {
   const sprint = await tx.sprint.findFirst({ where: { id: sprintId, projectId }, select: { id: true } });
   if (!sprint) throw new Error("SPRINT_NOT_FOUND");
   const task = await tx.task.findFirst({ where: { id: taskId, projectId }, select: { id: true, sprintId: true } });
@@ -224,9 +239,13 @@ const addTaskToSprint = async ({ projectId, sprintId, taskId, userId }) => prism
     })
     : null;
   return { task: updatedTask, notification };
-});
+  });
+  await enqueueTaskRiskEvaluation({ workspaceId, projectId, taskId, reason: "SPRINT_CHANGED" });
+  return result;
+};
 
-const removeTaskFromSprint = async ({ projectId, sprintId, taskId, userId }) => prisma.$transaction(async (tx) => {
+const removeTaskFromSprint = async ({ workspaceId, projectId, sprintId, taskId, userId }) => {
+  const result = await prisma.$transaction(async (tx) => {
   const task = await tx.task.findFirst({ where: { id: taskId, projectId, sprintId }, select: { id: true, taskNumber: true, assigneeId: true } });
   if (!task) throw new Error("TASK_NOT_IN_SPRINT");
   await tx.task.update({ where: { id: taskId }, data: { sprintId: null } });
@@ -245,9 +264,13 @@ const removeTaskFromSprint = async ({ projectId, sprintId, taskId, userId }) => 
     })
     : null;
   return { notification };
-});
+  });
+  await enqueueTaskRiskEvaluation({ workspaceId, projectId, taskId, reason: "SPRINT_CHANGED" });
+  return result;
+};
 
-const moveTask = async ({ projectId, taskId, sprintId, userId }) => prisma.$transaction(async (tx) => {
+const moveTask = async ({ workspaceId, projectId, taskId, sprintId, userId }) => {
+  const result = await prisma.$transaction(async (tx) => {
   const task = await tx.task.findFirst({ where: { id: taskId, projectId }, select: { id: true, sprintId: true } });
   if (!task) throw new Error("TASK_NOT_FOUND");
   if (task.sprintId === sprintId) {
@@ -285,7 +308,10 @@ const moveTask = async ({ projectId, taskId, sprintId, userId }) => prisma.$tran
     changed: true,
     notification,
   };
-});
+  });
+  if (result.changed) await enqueueTaskRiskEvaluation({ workspaceId, projectId, taskId, reason: "SPRINT_CHANGED" });
+  return result;
+};
 
 const getBacklog = async ({ projectId, filters }) => prisma.task.findMany({
   where: {

@@ -1,4 +1,5 @@
 const express = require("express");
+const cors = require("cors");
 const authRoutes = require("./modules/auth/auth.routes");
 const workspaceRoutes = require("./modules/workspace/workspace.routes");
 const projectRoutes = require("./modules/project/project.routes");
@@ -14,6 +15,20 @@ const dashboardRoutes = require("./modules/dashboard/dashboard.routes");
 const taskRiskRoutes = require("./modules/task-risk/task-risk.routes");
 
 const app = express();
+
+// ── CORS ─────────────────────────────────────────────────────────────────────
+// Reads the allowed frontend origin from FRONTEND_URL (set in .env).
+// Falls back to the Vite dev-server default when the variable is absent.
+// credentials:true is required for Authorization headers to be forwarded.
+// Do NOT use origin:"*" with credentials — browsers reject that combination.
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || "http://localhost:5173",
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+
+app.use(cors(corsOptions));
 
 app.use(express.json());
 

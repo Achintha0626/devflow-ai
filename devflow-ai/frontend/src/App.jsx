@@ -15,6 +15,7 @@
  *   /app/workspaces/:workspaceId/projects → project selection
  *   /app/workspaces/:workspaceId/projects/:projectId → ProjectLayout → Overview
  *   /app/workspaces/:workspaceId/projects/:projectId/tasks → project tasks
+ *   /app/workspaces/:workspaceId/projects/:projectId/kanban → Kanban board
  *   *          → redirects to /login
  */
 
@@ -23,6 +24,7 @@ import { ThemeProvider } from "./context/ThemeContext.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { AppLayout } from "./layouts/AppLayout";
 import { ProjectLayout } from "./layouts/ProjectLayout";
+import { KanbanPage } from "./pages/app/KanbanPage";
 import { ProjectOverviewPage } from "./pages/app/ProjectOverviewPage";
 import { ProjectSelectionPage } from "./pages/app/ProjectSelectionPage";
 import { TasksPage } from "./pages/app/TasksPage";
@@ -58,6 +60,7 @@ function App() {
               >
                 <Route index element={<ProjectOverviewPage />} />
                 <Route path="tasks" element={<TasksPage />} />
+                <Route path="kanban" element={<KanbanPage />} />
               </Route>
             </Route>
           </Route>

@@ -27,6 +27,7 @@ import { ProjectLayout } from "./layouts/ProjectLayout";
 import { KanbanPage } from "./pages/app/KanbanPage";
 import { ProjectOverviewPage } from "./pages/app/ProjectOverviewPage";
 import { ProjectSelectionPage } from "./pages/app/ProjectSelectionPage";
+import { RequirementsPage } from "./pages/app/RequirementsPage";
 import { SprintsPage } from "./pages/app/SprintsPage";
 import { TasksPage } from "./pages/app/TasksPage";
 import { WorkspaceSelectionPage } from "./pages/app/WorkspaceSelectionPage";
@@ -63,6 +64,7 @@ function App() {
                 <Route path="tasks" element={<TasksPage />} />
                 <Route path="kanban" element={<KanbanPage />} />
                 <Route path="sprints" element={<SprintsPage />} />
+                <Route path="requirements" element={<RequirementsPage />} />
               </Route>
             </Route>
           </Route>

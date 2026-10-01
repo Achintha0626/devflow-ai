@@ -14,6 +14,7 @@
  *   /app       → ProtectedRoute → AppLayout → workspace selection
  *   /app/workspaces/:workspaceId/projects → project selection
  *   /app/workspaces/:workspaceId/projects/:projectId → ProjectLayout → Overview
+ *   /app/workspaces/:workspaceId/projects/:projectId/tasks → project tasks
  *   *          → redirects to /login
  */
 
@@ -24,6 +25,7 @@ import { AppLayout } from "./layouts/AppLayout";
 import { ProjectLayout } from "./layouts/ProjectLayout";
 import { ProjectOverviewPage } from "./pages/app/ProjectOverviewPage";
 import { ProjectSelectionPage } from "./pages/app/ProjectSelectionPage";
+import { TasksPage } from "./pages/app/TasksPage";
 import { WorkspaceSelectionPage } from "./pages/app/WorkspaceSelectionPage";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { RegisterPage } from "./pages/auth/RegisterPage";
@@ -55,6 +57,7 @@ function App() {
                 element={<ProjectLayout />}
               >
                 <Route index element={<ProjectOverviewPage />} />
+                <Route path="tasks" element={<TasksPage />} />
               </Route>
             </Route>
           </Route>

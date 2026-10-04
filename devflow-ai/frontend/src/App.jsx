@@ -25,6 +25,7 @@ import { AuthProvider } from "./context/AuthContext.jsx";
 import { AppLayout } from "./layouts/AppLayout";
 import { ProjectLayout } from "./layouts/ProjectLayout";
 import { AIPlannerPage } from "./pages/app/AIPlannerPage";
+import { AnalyticsPage } from "./pages/app/AnalyticsPage";
 import { KanbanPage } from "./pages/app/KanbanPage";
 import { ProjectOverviewPage } from "./pages/app/ProjectOverviewPage";
 import { ProjectSelectionPage } from "./pages/app/ProjectSelectionPage";
@@ -67,6 +68,7 @@ function App() {
                 <Route path="sprints" element={<SprintsPage />} />
                 <Route path="requirements" element={<RequirementsPage />} />
                 <Route path="ai-planner" element={<AIPlannerPage />} />
+                <Route path="analytics" element={<AnalyticsPage />} />
               </Route>
             </Route>
           </Route>

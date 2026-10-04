@@ -6,7 +6,6 @@ import { ErrorState, LoadingState } from "../components/NavigationFeedback";
 import "../pages/app/NavigationPages.css";
 
 const futureSections = [
-  "AI Planner",
   "Analytics",
 ];
 
@@ -103,6 +102,12 @@ export function ProjectLayout() {
             to={`/app/workspaces/${workspaceId}/projects/${projectId}/requirements`}
           >
             Requirements
+          </NavLink>
+          <NavLink
+            className={({ isActive }) => `project-nav__link${isActive ? " is-active" : ""}`}
+            to={`/app/workspaces/${workspaceId}/projects/${projectId}/ai-planner`}
+          >
+            AI Planner
           </NavLink>
           {futureSections.map((section) => (
             <span className="project-nav__link project-nav__link--disabled" key={section}>

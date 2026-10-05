@@ -1,4 +1,4 @@
-const { predictTaskRisk, getTaskRiskHistory } = require("./task-risk.service");
+const { predictTaskRisk, getTaskRiskHistory, getProjectRiskSummary } = require("./task-risk.service");
 
 const getRisk = async (req, res) => {
   try {
@@ -37,7 +37,21 @@ const getHistory = async (req, res) => {
   }
 };
 
+const getRiskSummary = async (req, res) => {
+  try {
+    const result = await getProjectRiskSummary({
+      workspaceId: req.params.workspaceId,
+      projectId: req.params.projectId,
+    });
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
 module.exports = {
   getRisk,
   getHistory,
+  getRiskSummary,
 };

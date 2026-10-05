@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { getProjectDashboardRequest } from "../../api/dashboardApi";
+import { getProjectDashboardRequest, getProjectRiskSummary } from "../../api/dashboardApi";
 import { ActiveSprintAnalytics } from "../../components/analytics/ActiveSprintAnalytics";
 import { AnalyticsSummary } from "../../components/analytics/AnalyticsSummary";
 import { DistributionCard } from "../../components/analytics/DistributionCard";
+import { MLRiskInsights } from "../../components/analytics/MLRiskInsights";
 import { RecentActivityAnalytics } from "../../components/analytics/RecentActivityAnalytics";
 import { TeamWorkload } from "../../components/analytics/TeamWorkload";
 import { ErrorState, LoadingState } from "../../components/NavigationFeedback";
@@ -15,6 +16,11 @@ export function AnalyticsPage() {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
+
+  const [riskData, setRiskData] = useState(null);
+  const [riskError, setRiskError] = useState(null);
+  const [isRiskLoading, setIsRiskLoading] = useState(true);
+  const [riskReloadKey, setRiskReloadKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -38,7 +44,29 @@ export function AnalyticsPage() {
     };
   }, [workspaceId, projectId, reloadKey]);
 
-  if (isLoading) return <LoadingState label="Loading analytics…" />;
+  useEffect(() => {
+    let active = true;
+
+    async function loadRiskSummary() {
+      setIsRiskLoading(true);
+      setRiskError(null);
+      try {
+        const response = await getProjectRiskSummary(workspaceId, projectId);
+        if (active) setRiskData(response.data);
+      } catch (requestError) {
+        if (active) setRiskError(requestError);
+      } finally {
+        if (active) setIsRiskLoading(false);
+      }
+    }
+
+    loadRiskSummary();
+    return () => {
+      active = false;
+    };
+  }, [workspaceId, projectId, riskReloadKey]);
+
+  if (isLoading) return <LoadingState label="Loading analytics..." />;
 
   if (error) {
     return (
@@ -68,9 +96,12 @@ export function AnalyticsPage() {
 
       <AnalyticsSummary overview={data.overview} />
 
-      <p className="analytics-risk-note">
-        Predictive task delay risk analytics will be available in a future release once a project-wide risk summary endpoint is available.
-      </p>
+      <MLRiskInsights
+        data={riskData}
+        isLoading={isRiskLoading}
+        error={riskError}
+        onRetry={() => setRiskReloadKey((key) => key + 1)}
+      />
 
       <div className="analytics-grid">
         <DistributionCard

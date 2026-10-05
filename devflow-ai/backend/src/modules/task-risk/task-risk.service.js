@@ -200,7 +200,111 @@ const getTaskRiskHistory = async ({ workspaceId, projectId, taskId }) => {
   };
 };
 
+const getProjectRiskSummary = async ({ workspaceId, projectId }) => {
+  const tasks = await prisma.task.findMany({
+    where: {
+      projectId,
+      project: { workspaceId },
+    },
+    select: {
+      id: true,
+      taskNumber: true,
+      title: true,
+      status: true,
+      priority: true,
+      riskPredictions: {
+        orderBy: [
+          { predictedAt: "desc" },
+          { id: "desc" },
+        ],
+        take: 1,
+        select: {
+          delayProbability: true,
+          riskLevel: true,
+          modelVersion: true,
+          predictedAt: true,
+        },
+      },
+    },
+  });
+
+  const totalTasks = tasks.length;
+
+  const predictedTasks = tasks.filter((task) => task.riskPredictions.length > 0);
+  const tasksWithPredictions = predictedTasks.length;
+  const tasksWithoutPredictions = totalTasks - tasksWithPredictions;
+
+  const coveragePercentage = totalTasks === 0
+    ? 0
+    : Math.round((tasksWithPredictions / totalTasks) * 100 * 100) / 100;
+
+  const riskDistribution = { LOW: 0, MEDIUM: 0, HIGH: 0 };
+  let probabilitySum = 0;
+  let latestPredictionAt = null;
+  const modelVersionSet = new Set();
+
+  const highestRiskCandidates = [];
+
+  for (const task of predictedTasks) {
+    const prediction = task.riskPredictions[0];
+    probabilitySum += prediction.delayProbability;
+
+    if (Object.prototype.hasOwnProperty.call(riskDistribution, prediction.riskLevel)) {
+      riskDistribution[prediction.riskLevel] += 1;
+    }
+
+    modelVersionSet.add(prediction.modelVersion);
+
+    const predictedAtDate = new Date(prediction.predictedAt);
+    if (!latestPredictionAt || predictedAtDate > new Date(latestPredictionAt)) {
+      latestPredictionAt = prediction.predictedAt;
+    }
+
+    highestRiskCandidates.push({
+      id: task.id,
+      taskNumber: task.taskNumber,
+      title: task.title,
+      status: task.status,
+      priority: task.priority,
+      delayProbability: prediction.delayProbability,
+      riskLevel: prediction.riskLevel,
+      modelVersion: prediction.modelVersion,
+      predictedAt: prediction.predictedAt,
+    });
+  }
+
+  const averageDelayProbability = tasksWithPredictions === 0
+    ? 0
+    : Math.round((probabilitySum / tasksWithPredictions) * 10000) / 10000;
+
+  highestRiskCandidates.sort((a, b) => {
+    if (b.delayProbability !== a.delayProbability) {
+      return b.delayProbability - a.delayProbability;
+    }
+    return new Date(b.predictedAt) - new Date(a.predictedAt);
+  });
+
+  const highestRiskTasks = highestRiskCandidates.slice(0, 5);
+
+  const modelVersions = Array.from(modelVersionSet).sort();
+
+  return {
+    summary: {
+      totalTasks,
+      tasksWithPredictions,
+      tasksWithoutPredictions,
+      coveragePercentage,
+      averageDelayProbability,
+    },
+    riskDistribution,
+    highestRiskTasks,
+    modelVersions,
+    latestPredictionAt: latestPredictionAt ? new Date(latestPredictionAt).toISOString() : null,
+  };
+};
+
 module.exports = {
   predictTaskRisk,
   getTaskRiskHistory,
+  getProjectRiskSummary,
 };

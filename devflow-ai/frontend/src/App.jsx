@@ -1,23 +1,3 @@
-/**
- * App.jsx
- *
- * Root application component.
- * Provider order (outer → inner):
- *   ThemeProvider — manages light/dark theme, applies data-theme to <html>
- *   AuthProvider  — manages authentication state
- *   Routes        — react-router-dom v7 route tree
- *
- * Route structure:
- *   /          → redirects to /login
- *   /login     → LoginPage  (public only; authenticated users → /app)
- *   /register  → RegisterPage (public only; authenticated users → /app)
- *   /app       → ProtectedRoute → AppLayout → workspace selection
- *   /app/workspaces/:workspaceId/projects → project selection
- *   /app/workspaces/:workspaceId/projects/:projectId → ProjectLayout → Overview
- *   /app/workspaces/:workspaceId/projects/:projectId/tasks → project tasks
- *   /app/workspaces/:workspaceId/projects/:projectId/kanban → Kanban board
- *   *          → redirects to /login
- */
 
 import { Navigate, Route, Routes } from "react-router-dom";
 import { ThemeProvider } from "./context/ThemeContext.jsx";

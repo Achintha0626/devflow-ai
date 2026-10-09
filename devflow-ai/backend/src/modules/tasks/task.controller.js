@@ -10,6 +10,7 @@ const {
 } = require("./task.service");
 const { taskQuerySchema } = require("./task.validation");
 const { emitToProject, emitToUser } = require("../../socket/socket");
+const { invalidateProjectDashboard } = require("../../services/cache.service");
 
 const internalError = (res, error) => {
   console.error(error);
@@ -49,6 +50,7 @@ const handleTaskError = (res, error) => {
 const create = async (req, res) => {
   try {
     const task = await createTask({ project: req.project, userId: req.user.id, task: req.body });
+    await invalidateProjectDashboard(req.project.id);
     emitToProject(req.project.id, "task:created", { projectId: req.project.id, actorId: req.user.id, task });
     return res.status(201).json({ success: true, message: "Task created successfully", data: task });
   } catch (error) {
@@ -83,6 +85,7 @@ const getById = async (req, res) => {
 const update = async (req, res) => {
   try {
     const task = await updateTask({ project: req.project, taskId: req.params.taskId, userId: req.user.id, task: req.body });
+    await invalidateProjectDashboard(req.project.id);
     emitToProject(req.project.id, "task:updated", { projectId: req.project.id, actorId: req.user.id, task });
     return res.status(200).json({ success: true, message: "Task updated successfully", data: task });
   } catch (error) {
@@ -101,6 +104,7 @@ const updateStatus = async (req, res) => {
       projectRole: req.projectMember?.role,
       status: req.body.status,
     });
+    await invalidateProjectDashboard(req.project.id);
     const task = result.task;
     emitToProject(req.project.id, "task:status-changed", { projectId: req.project.id, actorId: req.user.id, task });
     if (result.notification) emitToUser(result.notification.userId, "notification:new", result.notification);
@@ -118,6 +122,7 @@ const assign = async (req, res) => {
       assigneeId: req.body.assigneeId,
       userId: req.user.id,
     });
+    await invalidateProjectDashboard(req.project.id);
     const task = result.task;
     emitToProject(req.project.id, "task:updated", { projectId: req.project.id, actorId: req.user.id, task });
     if (result.notification) emitToUser(result.notification.userId, "notification:new", result.notification);
@@ -130,6 +135,7 @@ const assign = async (req, res) => {
 const remove = async (req, res) => {
   try {
     await deleteTask({ projectId: req.project.id, taskId: req.params.taskId });
+    await invalidateProjectDashboard(req.project.id);
     return res.status(200).json({ success: true, message: "Task deleted successfully" });
   } catch (error) {
     return handleTaskError(res, error);
@@ -145,6 +151,7 @@ const convertSuggestion = async (req, res) => {
       userId: req.user.id,
       task: req.body,
     });
+    await invalidateProjectDashboard(req.project.id);
     emitToProject(req.project.id, "task:created", { projectId: req.project.id, actorId: req.user.id, task });
     return res.status(201).json({ success: true, message: "AI suggestion converted to task successfully", data: task });
   } catch (error) {

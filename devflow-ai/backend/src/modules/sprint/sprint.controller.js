@@ -13,6 +13,7 @@ const {
 } = require("./sprint.service");
 const { sprintFilterSchema, backlogFilterSchema } = require("./sprint.validation");
 const { emitToProject, emitToUser } = require("../../socket/socket");
+const { invalidateProjectDashboard } = require("../../services/cache.service");
 
 const internalError = (res, error) => {
   console.error(error);
@@ -40,6 +41,7 @@ const handleError = (res, error) => {
 const create = async (req, res) => {
   try {
     const sprint = await createSprint({ projectId: req.project.id, userId: req.user.id, ...req.body });
+    await invalidateProjectDashboard(req.project.id);
     return res.status(201).json({ success: true, message: "Sprint created successfully", data: sprint });
   } catch (error) { return handleError(res, error); }
 };
@@ -62,13 +64,16 @@ const getById = async (req, res) => {
 
 const update = async (req, res) => {
   try {
-    return res.status(200).json({ success: true, message: "Sprint updated successfully", data: await updateSprint({ workspaceId: req.project.workspaceId, projectId: req.project.id, sprintId: req.params.sprintId, ...req.body }) });
+    const data = await updateSprint({ workspaceId: req.project.workspaceId, projectId: req.project.id, sprintId: req.params.sprintId, ...req.body });
+    await invalidateProjectDashboard(req.project.id);
+    return res.status(200).json({ success: true, message: "Sprint updated successfully", data });
   } catch (error) { return handleError(res, error); }
 };
 
 const lifecycle = (transition) => async (req, res) => {
   try {
     const sprint = await transitionSprint({ projectId: req.project.id, sprintId: req.params.sprintId, transition });
+    await invalidateProjectDashboard(req.project.id);
     const messages = { start: "Sprint started successfully", complete: "Sprint completed successfully", cancel: "Sprint cancelled successfully" };
     return res.status(200).json({ success: true, message: messages[transition], data: sprint });
   } catch (error) { return handleError(res, error); }
@@ -77,6 +82,7 @@ const lifecycle = (transition) => async (req, res) => {
 const addTask = async (req, res) => {
   try {
     const result = await addTaskToSprint({ workspaceId: req.project.workspaceId, projectId: req.project.id, sprintId: req.params.sprintId, taskId: req.body.taskId, userId: req.user.id });
+    await invalidateProjectDashboard(req.project.id);
     emitToProject(req.project.id, "task:sprint-changed", { projectId: req.project.id, actorId: req.user.id, task: result.task, oldSprintId: null, newSprintId: req.params.sprintId });
     if (result.notification) emitToUser(result.notification.userId, "notification:new", result.notification);
     return res.status(200).json({ success: true, message: "Task added to sprint successfully", data: result.task });
@@ -86,6 +92,7 @@ const addTask = async (req, res) => {
 const removeTask = async (req, res) => {
   try {
     const result = await removeTaskFromSprint({ workspaceId: req.project.workspaceId, projectId: req.project.id, sprintId: req.params.sprintId, taskId: req.params.taskId, userId: req.user.id });
+    await invalidateProjectDashboard(req.project.id);
     emitToProject(req.project.id, "task:sprint-changed", { projectId: req.project.id, actorId: req.user.id, taskId: req.params.taskId, oldSprintId: req.params.sprintId, newSprintId: null });
     if (result.notification) emitToUser(result.notification.userId, "notification:new", result.notification);
     return res.status(200).json({ success: true, message: "Task returned to backlog successfully" });
@@ -96,6 +103,7 @@ const move = async (req, res) => {
   try {
     const result = await moveTask({ workspaceId: req.project.workspaceId, projectId: req.project.id, taskId: req.params.taskId, sprintId: req.body.sprintId, userId: req.user.id });
     if (result.changed) {
+      await invalidateProjectDashboard(req.project.id);
       emitToProject(req.project.id, "task:sprint-changed", {
         projectId: req.project.id,
         actorId: req.user.id,
@@ -126,6 +134,7 @@ const progress = async (req, res) => {
 const remove = async (req, res) => {
   try {
     await deleteSprint({ projectId: req.project.id, sprintId: req.params.sprintId });
+    await invalidateProjectDashboard(req.project.id);
     return res.status(200).json({ success: true, message: "Sprint deleted successfully" });
   } catch (error) { return handleError(res, error); }
 };

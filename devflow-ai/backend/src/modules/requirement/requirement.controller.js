@@ -6,6 +6,7 @@ const {
   deleteRequirement,
 } = require("./requirement.service");
 const { requirementFiltersSchema } = require("./requirement.validation");
+const { invalidateProjectDashboard } = require("../../services/cache.service");
 
 const internalError = (res, error) => {
   console.error(error);
@@ -19,6 +20,7 @@ const create = async (req, res) => {
       userId: req.user.id,
       ...req.body,
     });
+    await invalidateProjectDashboard(req.project.id);
 
     return res.status(201).json({
       success: true,
@@ -78,6 +80,7 @@ const update = async (req, res) => {
       requirementId: req.params.requirementId,
       ...req.body,
     });
+    await invalidateProjectDashboard(req.project.id);
 
     return res.status(200).json({
       success: true,
@@ -98,6 +101,7 @@ const remove = async (req, res) => {
       projectId: req.project.id,
       requirementId: req.params.requirementId,
     });
+    await invalidateProjectDashboard(req.project.id);
 
     return res.status(200).json({
       success: true,

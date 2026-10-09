@@ -10,6 +10,7 @@ const {
   deleteProject,
 } = require("./project.service");
 const { projectStatusSchema } = require("./project.validation");
+const { invalidateProjectDashboard } = require("../../services/cache.service");
 
 const internalError = (res, error) => {
   console.error(error);
@@ -96,6 +97,7 @@ const addMember = async (req, res) => {
       workspaceId: req.params.workspaceId,
       ...req.body,
     });
+    await invalidateProjectDashboard(req.params.projectId);
     return res.status(201).json({ success: true, message: "Project member added successfully", data: member });
   } catch (error) {
     if (error.message === "PROJECT_NOT_FOUND") {
@@ -133,6 +135,7 @@ const removeMember = async (req, res) => {
       workspaceId: req.params.workspaceId,
       memberId: req.params.memberId,
     });
+    await invalidateProjectDashboard(req.params.projectId);
     return res.status(200).json({ success: true, message: "Project member removed successfully", data: member });
   } catch (error) {
     if (error.message === "PROJECT_MEMBER_NOT_FOUND") {
@@ -145,6 +148,7 @@ const removeMember = async (req, res) => {
 const remove = async (req, res) => {
   try {
     await deleteProject({ projectId: req.params.projectId, workspaceId: req.params.workspaceId });
+    await invalidateProjectDashboard(req.params.projectId);
     return res.status(200).json({ success: true, message: "Project deleted successfully" });
   } catch (error) {
     if (error.message === "PROJECT_NOT_FOUND") {

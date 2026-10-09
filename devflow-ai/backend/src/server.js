@@ -3,6 +3,7 @@ const app = require("./app");
 const { initializeSocket } = require("./socket/socket");
 const { startTaskRiskWorker, closeTaskRiskWorker } = require("./workers/task-risk.worker");
 const { closeTaskRiskQueue } = require("./queues/task-risk.queue");
+const { closeCacheClient } = require("./services/cache.service");
 
 const PORT = 5000;
 const server = http.createServer(app);
@@ -24,6 +25,11 @@ const shutdown = async (signal) => {
     await closeTaskRiskQueue();
   } catch (error) {
     console.error("[Server] Task-risk shutdown error", { message: error.message });
+  }
+  try {
+    await closeCacheClient();
+  } catch (error) {
+    console.error("[Server] Cache shutdown error", { message: error.message });
   }
   server.close(() => process.exit(0));
 };

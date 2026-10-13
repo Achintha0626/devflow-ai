@@ -12,22 +12,24 @@ function shouldShowChange(oldValue, newValue) {
 }
 
 export function RecentActivityAnalytics({ activities }) {
+  const activityList = activities || [];
+
   return (
-    <section className="analytics-panel" aria-label="Recent activity">
+    <section className="analytics-panel analytics-activity-panel" aria-label="Recent activity">
       <header className="analytics-panel__header">
         <div>
           <h2>Recent activity</h2>
-          <p>Latest task activity in this project</p>
+          <p>Latest task updates and changes in this project</p>
         </div>
-        <span className="analytics-panel__total">{formatCount(activities.length)}</span>
+        <span className="analytics-panel__total">{formatCount(activityList.length)}</span>
       </header>
-      {activities.length === 0 ? (
+      {activityList.length === 0 ? (
         <p className="analytics-empty-note">No recent activity.</p>
       ) : (
         <ol className="analytics-activity-list">
-          {activities.map((activity) => {
+          {activityList.map((activity) => {
             const actor = getMemberName(activity.actor);
-            const taskLabel = activity.task?.taskNumber || activity.task?.title;
+            const taskLabel = activity.task?.taskNumber ? `#${activity.task.taskNumber}` : activity.task?.title;
             const showChange = activity.field && shouldShowChange(activity.oldValue, activity.newValue);
             const oldDisplay = formatActivityValue(activity.oldValue);
             const newDisplay = formatActivityValue(activity.newValue);
@@ -35,34 +37,35 @@ export function RecentActivityAnalytics({ activities }) {
             return (
               <li className="analytics-activity" key={activity.id}>
                 <div className="analytics-activity__marker" aria-hidden="true" />
-                <div>
-                  <p className="analytics-activity__summary">
-                    <strong>{actor}</strong>
-                    {" "}
-                    {formatLabel(activity.type).toLowerCase()}
-                    {taskLabel && (
-                      <>
-                        {" · "}
-                        <strong>{taskLabel}</strong>
-                      </>
-                    )}
-                  </p>
-                  {showChange && (
-                    <p className="analytics-activity__change">
-                      {activity.field.replaceAll("_", " ")}
-                      {(oldDisplay !== null || newDisplay !== null) && (
+                <div className="analytics-activity__body">
+                  <div className="analytics-activity__top-row">
+                    <p className="analytics-activity__summary">
+                      <strong>{actor}</strong>
+                      {" "}
+                      <span>{formatLabel(activity.type).toLowerCase()}</span>
+                      {taskLabel && (
                         <>
-                          {": "}
-                          {oldDisplay ?? "None"}
-                          {" \u2192 "}
-                          {newDisplay ?? "None"}
+                          {" · "}
+                          <span className="analytics-activity__task-label">{taskLabel}</span>
                         </>
                       )}
                     </p>
+                    <time className="analytics-activity__time" dateTime={activity.createdAt}>
+                      {formatActivityTime(activity.createdAt)}
+                    </time>
+                  </div>
+                  {showChange && (
+                    <div className="analytics-activity__change">
+                      <span className="analytics-activity__field">{activity.field.replaceAll("_", " ")}</span>
+                      {(oldDisplay !== null || newDisplay !== null) && (
+                        <span className="analytics-activity__values">
+                          <span className="analytics-activity__val">{oldDisplay ?? "None"}</span>
+                          <span className="analytics-activity__arrow" aria-hidden="true">{"\u2192"}</span>
+                          <span className="analytics-activity__val">{newDisplay ?? "None"}</span>
+                        </span>
+                      )}
+                    </div>
                   )}
-                  <time className="analytics-activity__time" dateTime={activity.createdAt}>
-                    {formatActivityTime(activity.createdAt)}
-                  </time>
                 </div>
               </li>
             );

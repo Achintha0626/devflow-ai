@@ -1,54 +1,115 @@
-import { formatTaskDate, formatTaskLabel, getTaskDisplayName } from "../tasks/taskUtils";
+import {
+  formatTaskDate,
+  formatTaskLabel,
+  getTaskDisplayName,
+} from "../tasks/taskUtils";
+import { PlusIcon, UserIcon } from "../icons";
 
-export function BacklogSection({ backlog, selectedSprint, pendingTaskIds, onAddTask }) {
-  const canAddToSelectedSprint = selectedSprint && ["PLANNED", "ACTIVE"].includes(selectedSprint.status);
+export function BacklogSection({
+  backlog,
+  selectedSprint,
+  pendingTaskIds,
+  onAddTask,
+}) {
+  const canAddToSelectedSprint =
+    selectedSprint && ["PLANNED", "ACTIVE"].includes(selectedSprint.status);
 
   return (
-    <section className="sprint-panel sprint-backlog" aria-labelledby="sprint-backlog-heading">
+    <section
+      className="sprint-panel sprint-backlog-panel"
+      aria-labelledby="sprint-backlog-heading"
+    >
       <header className="sprint-panel__header">
         <div>
           <p className="sprint-eyebrow">UNSCHEDULED WORK</p>
-          <h2 id="sprint-backlog-heading">Backlog <span className="sprint-count">{backlog.length}</span></h2>
+          <h2 id="sprint-backlog-heading">
+            Backlog <span className="sprint-count">{backlog.length}</span>
+          </h2>
         </div>
       </header>
-      {!selectedSprint && <p className="sprint-empty-note">Select a sprint to add backlog tasks.</p>}
-      {selectedSprint && !canAddToSelectedSprint && (
-        <p className="sprint-empty-note">Tasks can be added from the backlog when a planned or active sprint is selected.</p>
+
+      {!selectedSprint && (
+        <div className="sprint-empty-note">
+          <p>Select a sprint to add backlog tasks.</p>
+        </div>
       )}
+
+      {selectedSprint && !canAddToSelectedSprint && (
+        <div className="sprint-empty-note">
+          <p>Tasks can be added from the backlog when a planned or active sprint is selected.</p>
+        </div>
+      )}
+
       {backlog.length === 0 ? (
-        <p className="sprint-empty-note">The backlog is empty.</p>
+        <div className="sprint-empty-note">
+          <p>The backlog is empty.</p>
+        </div>
       ) : (
-        <ul className="sprint-task-list sprint-backlog__list">
-          {backlog.map((task) => (
-            <li className="sprint-task" key={task.id}>
-              <div className="sprint-task__main">
-                <div className="sprint-task__title-line">
-                  <span className="sprint-task__number">{task.taskNumber}</span>
-                  <span className="sprint-task__title">{task.title}</span>
-                </div>
-                <div className="sprint-task__meta">
-                  <span>{formatTaskLabel(task.status)}</span>
-                  <span>{formatTaskLabel(task.priority)}</span>
-                  <span>{formatTaskLabel(task.type)}</span>
-                  <span>{task.storyPoints == null ? "No points" : `${task.storyPoints} points`}</span>
-                  <span>{getTaskDisplayName(task.assignee)}</span>
-                  <span>{task.dueDate ? formatTaskDate(task.dueDate) : "No due date"}</span>
-                  {task.requirement && <span>Requirement: {task.requirement.title}</span>}
-                </div>
-              </div>
-              {canAddToSelectedSprint && (
-                <button
-                  className="sprint-button sprint-button--quiet"
-                  type="button"
-                  onClick={() => onAddTask(task)}
-                  disabled={pendingTaskIds.has(task.id)}
+        <div className="sprint-backlog__scroll">
+          <ul className="sprint-task-list">
+            {backlog.map((task) => {
+              const statusSlug = (task.status || "").toLowerCase();
+              const prioritySlug = (task.priority || "").toLowerCase();
+              const isPending = pendingTaskIds.has(task.id);
+
+              return (
+                <li
+                  className={`sprint-task-card${isPending ? " is-pending" : ""}`}
+                  key={task.id}
                 >
-                  {pendingTaskIds.has(task.id) ? "Adding…" : `Add to ${selectedSprint.name}`}
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
+                  <div className="sprint-task-card__body">
+                    <div className="sprint-task-card__title-line">
+                      <span className="sprint-task-card__number">{task.taskNumber}</span>
+                      <span className="sprint-task-card__title">{task.title}</span>
+                    </div>
+                    <div className="sprint-task-card__meta">
+                      <span className={`task-badge task-badge--${statusSlug}`}>
+                        {formatTaskLabel(task.status)}
+                      </span>
+                      <span className={`task-priority-badge task-priority--${prioritySlug}`}>
+                        {formatTaskLabel(task.priority)}
+                      </span>
+                      <span className="task-type-badge">{formatTaskLabel(task.type)}</span>
+                      <span className="task-points-badge">
+                        {task.storyPoints == null ? "—" : `${task.storyPoints} pts`}
+                      </span>
+                      <span
+                        className="sprint-task-card__assignee"
+                        title={getTaskDisplayName(task.assignee)}
+                      >
+                        <UserIcon size={11} />
+                        <span>{getTaskDisplayName(task.assignee)}</span>
+                      </span>
+                      {task.dueDate && (
+                        <span className="sprint-task-card__due">Due {formatTaskDate(task.dueDate)}</span>
+                      )}
+                      {task.requirement && (
+                        <span className="sprint-task-card__requirement">
+                          Req: {task.requirement.title}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {canAddToSelectedSprint && (
+                    <div className="sprint-task-card__actions">
+                      <button
+                        className="sprint-button sprint-button--quiet sprint-button--sm"
+                        type="button"
+                        onClick={() => onAddTask(task)}
+                        disabled={isPending}
+                        title={`Add ${task.taskNumber} to ${selectedSprint.name}`}
+                      >
+                        <PlusIcon size={12} />
+                        <span>{isPending ? "Adding…" : `Add to ${selectedSprint.name}`}</span>
+                      </button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
     </section>
   );

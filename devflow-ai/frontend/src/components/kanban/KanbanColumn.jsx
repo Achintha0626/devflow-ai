@@ -10,6 +10,7 @@ export function KanbanColumn({
   onMove,
   onDragStart,
   onDragEnd,
+  onSelectTask,
 }) {
   const [isDropTarget, setIsDropTarget] = useState(false);
   const acceptsDraggedTask = Boolean(
@@ -17,6 +18,8 @@ export function KanbanColumn({
       && !pendingTaskIds.has(draggedTask.id)
       && STATUS_TRANSITIONS[draggedTask.status]?.includes(status)
   );
+
+  const statusSlug = (status || "").toLowerCase();
 
   const handleDragOver = (event) => {
     if (!acceptsDraggedTask) return;
@@ -41,29 +44,45 @@ export function KanbanColumn({
 
   return (
     <section
-      className={`kanban-column${isDropTarget && acceptsDraggedTask ? " is-drop-target" : ""}`}
-      aria-label={`${formatTaskLabel(status)} column, ${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}`}
+      className={`kanban-column kanban-column--${statusSlug}${
+        isDropTarget && acceptsDraggedTask ? " is-drop-target" : ""
+      }`}
+      aria-label={`${formatTaskLabel(status)} column, ${tasks.length} ${
+        tasks.length === 1 ? "task" : "tasks"
+      }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       <header className="kanban-column__header">
-        <h2>{formatTaskLabel(status)}</h2>
+        <div className="kanban-column__title-wrapper">
+          <span
+            className={`kanban-column__dot kanban-column__dot--${statusSlug}`}
+            aria-hidden="true"
+          />
+          <h2>{formatTaskLabel(status)}</h2>
+        </div>
         <span className="kanban-column__count">{tasks.length}</span>
       </header>
+
       <div className="kanban-column__cards">
         {tasks.length === 0 ? (
-          <p className="kanban-column__empty">No tasks</p>
-        ) : tasks.map((task) => (
-          <KanbanCard
-            key={task.id}
-            task={task}
-            pending={pendingTaskIds.has(task.id)}
-            onMove={onMove}
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}
-          />
-        ))}
+          <div className="kanban-column__empty">
+            <span>No tasks in this column</span>
+          </div>
+        ) : (
+          tasks.map((task) => (
+            <KanbanCard
+              key={task.id}
+              task={task}
+              pending={pendingTaskIds.has(task.id)}
+              onMove={onMove}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onSelect={onSelectTask}
+            />
+          ))
+        )}
       </div>
     </section>
   );

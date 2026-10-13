@@ -4,6 +4,7 @@ import {
   TASK_TYPES,
   formatTaskLabel,
 } from "./taskUtils";
+import { SearchIcon, FilterIcon } from "../icons";
 
 export function TaskFilters({
   filters,
@@ -19,34 +20,43 @@ export function TaskFilters({
   return (
     <form className="task-filters" onSubmit={onSubmit}>
       <label className="task-filter task-filter--search">
-        <span>Search tasks</span>
-        <input
-          type="search"
-          value={filters.search}
-          onChange={update("search")}
-          maxLength={100}
-          placeholder="Task number or title"
-        />
+        <span>Search</span>
+        <div className="task-filter__input-wrapper">
+          <SearchIcon size={14} className="task-filter__icon" />
+          <input
+            type="search"
+            value={filters.search}
+            onChange={update("search")}
+            maxLength={100}
+            placeholder="Search by ID or title…"
+          />
+        </div>
       </label>
       <label className="task-filter">
         <span>Status</span>
         <select value={filters.status} onChange={update("status")}>
           <option value="">All statuses</option>
-          {TASK_STATUSES.map((status) => <option key={status} value={status}>{formatTaskLabel(status)}</option>)}
+          {TASK_STATUSES.map((status) => (
+            <option key={status} value={status}>{formatTaskLabel(status)}</option>
+          ))}
         </select>
       </label>
       <label className="task-filter">
         <span>Priority</span>
         <select value={filters.priority} onChange={update("priority")}>
           <option value="">All priorities</option>
-          {TASK_PRIORITIES.map((priority) => <option key={priority} value={priority}>{formatTaskLabel(priority)}</option>)}
+          {TASK_PRIORITIES.map((priority) => (
+            <option key={priority} value={priority}>{formatTaskLabel(priority)}</option>
+          ))}
         </select>
       </label>
       <label className="task-filter">
         <span>Type</span>
         <select value={filters.type} onChange={update("type")}>
           <option value="">All types</option>
-          {TASK_TYPES.map((type) => <option key={type} value={type}>{formatTaskLabel(type)}</option>)}
+          {TASK_TYPES.map((type) => (
+            <option key={type} value={type}>{formatTaskLabel(type)}</option>
+          ))}
         </select>
       </label>
       <label className="task-filter">
@@ -70,7 +80,10 @@ export function TaskFilters({
         </select>
       </label>
       <div className="task-filters__actions">
-        <button className="task-button task-button--primary" type="submit">Apply filters</button>
+        <button className="task-button task-button--primary" type="submit">
+          <FilterIcon size={13} />
+          <span>Apply filters</span>
+        </button>
         <button className="task-button task-button--quiet" type="button" onClick={onClear} disabled={!hasFilters}>
           Clear filters
         </button>

@@ -1,12 +1,5 @@
-/**
- * ThemeToggle.jsx
- *
- * Small button that switches between light and dark themes.
- * Uses Unicode sun/moon symbols — no icon library required.
- * Consumes ThemeContext via useTheme().
- */
-
 import { useTheme } from "../context/themeContext";
+import { SunIcon, MoonIcon } from "./icons";
 import "./ThemeToggle.css";
 
 export function ThemeToggle() {
@@ -21,7 +14,7 @@ export function ThemeToggle() {
       aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
     >
-      {theme === "dark" ? "☀" : "☾"}
+      {theme === "dark" ? <SunIcon size={15} /> : <MoonIcon size={15} />}
     </button>
   );
 }

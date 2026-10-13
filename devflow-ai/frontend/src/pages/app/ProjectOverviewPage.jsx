@@ -9,6 +9,7 @@ import {
   TeamWorkloadSection,
 } from "../../components/dashboard/DashboardSections";
 import { ErrorState, LoadingState } from "../../components/NavigationFeedback";
+import { RefreshIcon } from "../../components/icons";
 import "./ProjectDashboard.css";
 import "./NavigationPages.css";
 
@@ -67,6 +68,16 @@ export function ProjectOverviewPage() {
         <div className="dashboard-header__meta">
           {project.key && <span className="dashboard-project-key">{project.key}</span>}
           {project.status && <span className="project-status">{project.status.replaceAll("_", " ")}</span>}
+          <button
+            type="button"
+            className="dashboard-refresh-button"
+            onClick={() => setReloadKey((key) => key + 1)}
+            disabled={isLoading}
+            aria-label="Refresh dashboard data"
+          >
+            <RefreshIcon size={14} className={isLoading ? "is-spinning" : ""} />
+            <span>Refresh</span>
+          </button>
         </div>
       </header>
 
@@ -74,14 +85,14 @@ export function ProjectOverviewPage() {
       <div className="dashboard-grid">
         <DistributionSection
           title="Tasks by status"
-          description="Current task distribution"
+          description="Current task distribution across statuses"
           distribution={dashboard.tasksByStatus}
           total={dashboard.overview.totalTasks}
           emptyMessage="No tasks yet."
         />
         <DistributionSection
           title="Tasks by priority"
-          description="Priority distribution across tasks"
+          description="Priority breakdown across tasks"
           distribution={dashboard.tasksByPriority}
           total={dashboard.overview.totalTasks}
           emptyMessage="No task priorities to show."

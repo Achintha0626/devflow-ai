@@ -1,12 +1,3 @@
-﻿/**
- * ThemeContext.jsx
- *
- * Exports only the ThemeProvider component.
- * The ThemeContext object, useTheme hook, and init logic live in
- * themeContext.js so this file satisfies the
- * react-refresh/only-export-components ESLint rule.
- */
-
 import { useCallback, useState } from "react";
 import { ThemeContext, STORAGE_KEY, initialTheme } from "./themeContext";
 
@@ -20,7 +11,7 @@ export function ThemeProvider({ children }) {
       try {
         localStorage.setItem(STORAGE_KEY, next);
       } catch {
-        // ignore write failures
+        return next;
       }
       return next;
     });

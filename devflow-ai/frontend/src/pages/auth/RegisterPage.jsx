@@ -1,17 +1,7 @@
-﻿/**
- * RegisterPage.jsx
- *
- * Controlled-form registration page.
- *
- * After a successful form submission:
- *   - AuthContext.register() creates the account AND immediately logs in.
- *   - On success the user is navigated directly to /app (no manual login step).
- *   - On rare auto-login failure, the user is redirected to /login with a note.
- */
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ThemeToggle } from "../../components/ThemeToggle";
+import { LogoIcon, AlertCircleIcon } from "../../components/icons";
 import { useAuth } from "../../hooks/useAuth";
 import { getErrorMessage } from "../../utils/errorUtils";
 import "./AuthPages.css";
@@ -26,6 +16,7 @@ export function RegisterPage() {
     email: "",
     password: "",
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -39,14 +30,10 @@ export function RegisterPage() {
     setIsSubmitting(true);
 
     try {
-      // register() creates the account then auto-logs in, returning the user.
-      // On success the user state in AuthContext is already set, so navigating
-      // to /app is safe — ProtectedRoute will allow it.
       await register(form.firstName, form.lastName, form.email, form.password);
       navigate("/app", { replace: true });
     } catch (err) {
       if (err.message === "AUTO_LOGIN_FAILED") {
-        // Account was created but auto-login failed — send to login page.
         navigate("/login", {
           replace: true,
           state: { registrationSuccess: true },
@@ -60,14 +47,19 @@ export function RegisterPage() {
   }
 
   return (
-    <>
-      <div className="auth-page-topbar">
+    <div className="auth-container">
+      <header className="auth-page-topbar">
         <ThemeToggle />
-      </div>
+      </header>
+
       <div className="auth-page">
         <div className="auth-card">
           <div className="auth-card__header">
-            <span className="auth-card__logo" aria-hidden="true">⬡</span>
+            <div className="auth-card__logo-container">
+              <span className="auth-card__logo" aria-hidden="true">
+                <LogoIcon size={26} />
+              </span>
+            </div>
             <h1 className="auth-card__title">Create your account</h1>
             <p className="auth-card__subtitle">
               Already have an account?{" "}
@@ -79,7 +71,8 @@ export function RegisterPage() {
 
           {error && (
             <div id="register-error" className="auth-error" role="alert">
-              {error}
+              <AlertCircleIcon size={16} />
+              <span>{error}</span>
             </div>
           )}
 
@@ -139,20 +132,30 @@ export function RegisterPage() {
                 value={form.email}
                 onChange={handleChange}
                 className="auth-input"
-                placeholder="you@example.com"
+                placeholder="developer@devflow.ai"
                 disabled={isSubmitting}
               />
             </div>
 
             <div className="auth-field">
-              <label htmlFor="register-password" className="auth-label">
-                Password
-                <span className="auth-label__hint">(min 8 characters)</span>
-              </label>
+              <div className="auth-label-row">
+                <label htmlFor="register-password" className="auth-label">
+                  Password
+                  <span className="auth-label__hint">(min 8 characters)</span>
+                </label>
+                <button
+                  type="button"
+                  className="auth-password-toggle"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  tabIndex={-1}
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
               <input
                 id="register-password"
                 name="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 autoComplete="new-password"
                 required
                 minLength={8}
@@ -160,7 +163,7 @@ export function RegisterPage() {
                 value={form.password}
                 onChange={handleChange}
                 className="auth-input"
-                placeholder="••••••••"
+                placeholder="••••••••••••"
                 disabled={isSubmitting}
               />
             </div>
@@ -176,6 +179,6 @@ export function RegisterPage() {
           </form>
         </div>
       </div>
-    </>
+    </div>
   );
 }

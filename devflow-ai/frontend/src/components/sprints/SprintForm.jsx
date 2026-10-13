@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { createSprintRequest, updateSprintRequest } from "../../api/sprintApi";
 import { getSprintDates, getSprintErrorMessage, toTaskDate } from "./sprintUtils";
+import { CloseIcon } from "../icons";
 
 function getInitialValues(sprint) {
   return {
@@ -92,16 +93,18 @@ export function SprintForm({ sprint = null, onCancel, onSaved }) {
           <p className="sprint-eyebrow">{isEditing ? "EDIT SPRINT" : "NEW SPRINT"}</p>
           <h2 id="sprint-form-heading">{isEditing ? sprint.name : "Create sprint"}</h2>
         </div>
-        <button className="sprint-icon-button" type="button" onClick={onCancel} aria-label="Close sprint form">×</button>
+        <button className="sprint-icon-button" type="button" onClick={onCancel} aria-label="Close sprint form">
+          <CloseIcon size={16} />
+        </button>
       </header>
       <form className="sprint-form" onSubmit={handleSubmit}>
         <label className="sprint-field">
-          <span>Name <b aria-hidden="true">*</b></span>
-          <input required minLength={2} maxLength={100} value={values.name} onChange={updateField("name")} />
+          <span>Sprint Name <b aria-hidden="true">*</b></span>
+          <input required minLength={2} maxLength={100} value={values.name} onChange={updateField("name")} placeholder="e.g. Sprint 14 — Auth & Settings" />
         </label>
         <label className="sprint-field">
-          <span>Goal</span>
-          <textarea rows={3} maxLength={1000} value={values.goal} onChange={updateField("goal")} />
+          <span>Sprint Goal</span>
+          <textarea rows={3} maxLength={1000} value={values.goal} onChange={updateField("goal")} placeholder="What is the primary deliverable or target for this sprint?" />
         </label>
         <div className="sprint-form__dates">
           <label className="sprint-field">

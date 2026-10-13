@@ -4,43 +4,86 @@ import {
   getTaskDisplayName,
   STATUS_TRANSITIONS,
 } from "../tasks/taskUtils";
+import { UserIcon, ArrowRightIcon } from "../icons";
 
-export function KanbanCard({ task, pending, onMove, onDragStart, onDragEnd }) {
+export function KanbanCard({
+  task,
+  pending,
+  onMove,
+  onDragStart,
+  onDragEnd,
+  onSelect,
+}) {
   const transitions = STATUS_TRANSITIONS[task.status] || [];
+  const prioritySlug = (task.priority || "").toLowerCase();
+
+  const handleKeyDown = (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelect?.(task);
+    }
+  };
 
   return (
     <article
-      className={`kanban-card${pending ? " is-pending" : ""}`}
+      className={`kanban-card kanban-card--priority-${prioritySlug}${pending ? " is-pending" : ""}`}
       draggable={!pending}
-      aria-roledescription="draggable task card"
+      tabIndex={0}
+      role="button"
+      aria-label={`Task ${task.taskNumber}: ${task.title}`}
+      onClick={() => onSelect?.(task)}
+      onKeyDown={handleKeyDown}
       onDragStart={(event) => onDragStart(task, event)}
       onDragEnd={onDragEnd}
     >
-      <div className="kanban-card__topline">
+      <div className="kanban-card__header">
         <span className="kanban-card__number">{task.taskNumber}</span>
-        {pending && <span className="kanban-card__pending" role="status">Updating…</span>}
+        <div className="kanban-card__header-right">
+          {task.dueDate && (
+            <span className="kanban-card__due">Due {formatTaskDate(task.dueDate)}</span>
+          )}
+          {pending && <span className="kanban-card__pending" role="status">Moving…</span>}
+        </div>
       </div>
-      <h3>{task.title}</h3>
-      <div className="kanban-card__labels">
-        <span className="kanban-chip">{formatTaskLabel(task.priority)}</span>
-        <span className="kanban-card__type">{formatTaskLabel(task.type)}</span>
+
+      <h3 className="kanban-card__title">{task.title}</h3>
+
+      <div className="kanban-card__footer">
+        <div className="kanban-card__tags">
+          <span className={`kanban-priority-chip kanban-priority--${prioritySlug}`}>
+            {formatTaskLabel(task.priority)}
+          </span>
+          <span className="kanban-type-chip">{formatTaskLabel(task.type)}</span>
+          {task.storyPoints != null && (
+            <span className="kanban-points-chip">{task.storyPoints} pts</span>
+          )}
+        </div>
+        <span className="kanban-card__assignee" title={getTaskDisplayName(task.assignee)}>
+          <UserIcon size={11} />
+          <span>{getTaskDisplayName(task.assignee)}</span>
+        </span>
       </div>
-      <div className="kanban-card__metadata">
-        <span>{task.storyPoints == null ? "No points" : `${task.storyPoints} points`}</span>
-        <span>{getTaskDisplayName(task.assignee)}</span>
-        <span>{task.dueDate ? `Due ${formatTaskDate(task.dueDate)}` : "No due date"}</span>
-      </div>
+
       {transitions.length > 0 && (
-        <div className="kanban-card__moves" aria-label={`Move ${task.taskNumber} to another status`}>
+        <div
+          className="kanban-card__moves"
+          aria-label={`Move ${task.taskNumber} to another status`}
+        >
           {transitions.map((status) => (
             <button
               className="kanban-card__move-button"
               type="button"
               key={status}
               disabled={pending}
-              onClick={() => onMove(task, status)}
+              onClick={(event) => {
+                event.stopPropagation();
+                onMove(task, status);
+              }}
+              title={`Move to ${formatTaskLabel(status)}`}
+              aria-label={`Move ${task.taskNumber} to ${formatTaskLabel(status)}`}
             >
-              Move to {formatTaskLabel(status)}
+              <span>{formatTaskLabel(status)}</span>
+              <ArrowRightIcon size={10} />
             </button>
           ))}
         </div>

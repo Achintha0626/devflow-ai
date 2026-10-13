@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   createRequirementRequest,
@@ -10,6 +10,7 @@ import {
   formatTaskLabel,
   getRequirementErrorMessage,
 } from "./requirementUtils";
+import { CloseIcon } from "../icons";
 
 function getValues(requirement) {
   return {
@@ -34,9 +35,44 @@ function getChangedFields(values, requirement) {
 export function RequirementForm({ requirement = null, onCancel, onSaved }) {
   const { workspaceId, projectId } = useParams();
   const isEditing = Boolean(requirement);
+  const [prevRequirementId, setPrevRequirementId] = useState(requirement?.id);
   const [values, setValues] = useState(() => getValues(requirement));
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  if (requirement?.id !== prevRequirementId) {
+    setPrevRequirementId(requirement?.id);
+    setValues(getValues(requirement));
+  }
+
+  const initialValues = getValues(requirement);
+
+  const isDirty =
+    values.title !== initialValues.title ||
+    values.description !== initialValues.description ||
+    values.priority !== initialValues.priority ||
+    values.status !== initialValues.status;
+
+  const handleCancel = useCallback(() => {
+    if (isDirty) {
+      if (window.confirm("You have unsaved changes. Discard them?")) {
+        onCancel();
+      }
+    } else {
+      onCancel();
+    }
+  }, [isDirty, onCancel]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        handleCancel();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleCancel]);
 
   const updateField = (field) => (event) => {
     setValues((current) => ({ ...current, [field]: event.target.value }));
@@ -85,22 +121,45 @@ export function RequirementForm({ requirement = null, onCancel, onSaved }) {
   };
 
   return (
-    <section className="requirement-panel requirement-form-panel" aria-labelledby="requirement-form-heading">
+    <div className="requirement-form-wrapper">
       <header className="requirement-panel__header">
         <div>
           <p className="requirement-eyebrow">{isEditing ? "EDIT REQUIREMENT" : "NEW REQUIREMENT"}</p>
           <h2 id="requirement-form-heading">{isEditing ? requirement.title : "Create requirement"}</h2>
         </div>
-        <button className="requirement-icon-button" type="button" onClick={onCancel} aria-label="Close requirement form">×</button>
+        <button
+          className="requirement-icon-button"
+          type="button"
+          onClick={handleCancel}
+          aria-label="Close requirement form"
+        >
+          <CloseIcon size={16} />
+        </button>
       </header>
       <form className="requirement-form" onSubmit={handleSubmit}>
         <label className="requirement-field">
           <span>Title <b aria-hidden="true">*</b></span>
-          <input required minLength={2} maxLength={200} value={values.title} onChange={updateField("title")} />
+          <input
+            autoFocus
+            required
+            minLength={2}
+            maxLength={200}
+            value={values.title}
+            onChange={updateField("title")}
+            placeholder="e.g. User Authentication & Session Security"
+          />
         </label>
         <label className="requirement-field">
           <span>Description <b aria-hidden="true">*</b></span>
-          <textarea required minLength={1} maxLength={5000} rows={7} value={values.description} onChange={updateField("description")} />
+          <textarea
+            required
+            minLength={1}
+            maxLength={5000}
+            rows={7}
+            value={values.description}
+            onChange={updateField("description")}
+            placeholder="Describe the goal, business requirement, and expected acceptance scope…"
+          />
         </label>
         <div className="requirement-form__row">
           <label className="requirement-field">
@@ -125,9 +184,11 @@ export function RequirementForm({ requirement = null, onCancel, onSaved }) {
           <button className="requirement-button requirement-button--primary" type="submit" disabled={isSaving}>
             {isSaving ? "Saving…" : isEditing ? "Save changes" : "Create requirement"}
           </button>
-          <button className="requirement-button requirement-button--quiet" type="button" onClick={onCancel} disabled={isSaving}>Cancel</button>
+          <button className="requirement-button requirement-button--quiet" type="button" onClick={handleCancel} disabled={isSaving}>
+            Cancel
+          </button>
         </div>
       </form>
-    </section>
+    </div>
   );
 }

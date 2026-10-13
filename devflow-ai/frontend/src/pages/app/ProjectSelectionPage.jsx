@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { listWorkspaceProjectsRequest } from "../../api/projectApi";
 import { getWorkspaceRequest } from "../../api/workspaceApi";
 import { ErrorState, LoadingState } from "../../components/NavigationFeedback";
+import { ArrowLeftIcon, ArrowRightIcon } from "../../components/icons";
 import "./NavigationPages.css";
 
 export function ProjectSelectionPage() {
@@ -44,12 +45,13 @@ export function ProjectSelectionPage() {
   return (
     <div className="navigation-page">
       <Link className="navigation-back" to="/app/workspaces">
-        <span aria-hidden="true">←</span> All workspaces
+        <ArrowLeftIcon size={14} />
+        <span>All workspaces</span>
       </Link>
       <header className="navigation-page__heading">
         <p className="navigation-page__eyebrow">WORKSPACE / PROJECTS</p>
         <h1>{workspace?.name || "Select a project"}</h1>
-        <p>Choose a project to open its workspace.</p>
+        <p>Choose an active project to open its planning dashboard, Kanban board, and tasks.</p>
       </header>
 
       {isLoading && <LoadingState label="Loading projects…" />}
@@ -64,7 +66,7 @@ export function ProjectSelectionPage() {
       {!isLoading && !error && projects.length === 0 && (
         <section className="navigation-empty">
           <h2>No projects available</h2>
-          <p>This workspace does not have any projects available to you.</p>
+          <p>This workspace does not have any active projects available to you.</p>
         </section>
       )}
       {!isLoading && !error && projects.length > 0 && (
@@ -85,8 +87,12 @@ export function ProjectSelectionPage() {
                 </span>
                 <span className="navigation-item__meta">
                   {project.key && <span className="navigation-item__key">{project.key}</span>}
-                  {project.status && <span>{project.status.replaceAll("_", " ")}</span>}
-                  <span aria-hidden="true">→</span>
+                  {project.status && (
+                    <span className="project-status">
+                      {project.status.replaceAll("_", " ")}
+                    </span>
+                  )}
+                  <ArrowRightIcon size={16} />
                 </span>
               </Link>
             </li>

@@ -1,4 +1,4 @@
-import { clampProgress, formatCount, formatDate, formatLabel, formatPercent } from "./analyticsUtils";
+import { clampProgress, formatCount, formatDate, formatLabel, formatPercent, safePercent } from "./analyticsUtils";
 
 function SprintMetric({ label, value }) {
   return (
@@ -26,8 +26,10 @@ function ProgressTrack({ value, label }) {
 }
 
 export function ActiveSprintAnalytics({ sprint }) {
+  const storyPointsPct = sprint ? safePercent(sprint.completedStoryPoints, sprint.totalStoryPoints) : 0;
+
   return (
-    <section className="analytics-panel" aria-label="Active sprint">
+    <section className="analytics-panel analytics-sprint-panel" aria-label="Active sprint">
       <header className="analytics-panel__header">
         <div>
           <h2>Active sprint</h2>
@@ -37,7 +39,7 @@ export function ActiveSprintAnalytics({ sprint }) {
       {!sprint ? (
         <p className="analytics-empty-note">No active sprint</p>
       ) : (
-        <div>
+        <div className="analytics-sprint__body">
           <div className="analytics-sprint__heading">
             <div>
               <h3>{sprint.name}</h3>
@@ -52,13 +54,24 @@ export function ActiveSprintAnalytics({ sprint }) {
               {formatDate(sprint.endDate) || "End date not set"}
             </p>
           )}
-          <div className="analytics-sprint__progress-label">
-            <span>Task completion</span>
-            <span>
-              {formatCount(sprint.completedTasks)} / {formatCount(sprint.totalTasks)} · {formatPercent(sprint.completionPercentage)}
-            </span>
+          <div className="analytics-sprint__progress-group">
+            <div className="analytics-sprint__progress-label">
+              <span>Task completion</span>
+              <span>
+                {formatCount(sprint.completedTasks)} / {formatCount(sprint.totalTasks)} · {formatPercent(sprint.completionPercentage)}
+              </span>
+            </div>
+            <ProgressTrack value={sprint.completionPercentage} label="Sprint task completion" />
           </div>
-          <ProgressTrack value={sprint.completionPercentage} label="Sprint task completion" />
+          <div className="analytics-sprint__progress-group">
+            <div className="analytics-sprint__progress-label">
+              <span>Story points progress</span>
+              <span>
+                {formatCount(sprint.completedStoryPoints)} / {formatCount(sprint.totalStoryPoints)} · {formatPercent(storyPointsPct)}
+              </span>
+            </div>
+            <ProgressTrack value={storyPointsPct} label="Sprint story points progress" />
+          </div>
           <dl className="analytics-sprint__metrics">
             <SprintMetric label="Tasks" value={sprint.totalTasks} />
             <SprintMetric label="Completed" value={sprint.completedTasks} />

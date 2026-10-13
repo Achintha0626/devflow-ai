@@ -23,13 +23,11 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <Routes>
-          {/* Public-only routes: redirect authenticated users to /app */}
           <Route element={<PublicRoute />}>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
           </Route>
 
-          {/* Protected routes: redirect unauthenticated users to /login */}
           <Route element={<ProtectedRoute />}>
             <Route path="/app" element={<AppLayout />}>
               <Route index element={<Navigate to="workspaces" replace />} />
@@ -53,7 +51,6 @@ function App() {
             </Route>
           </Route>
 
-          {/* Catch-all and root redirects */}
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>

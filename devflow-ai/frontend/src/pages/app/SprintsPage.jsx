@@ -16,8 +16,15 @@ import { BacklogSection } from "../../components/sprints/BacklogSection";
 import { SprintDetails } from "../../components/sprints/SprintDetails";
 import { SprintForm } from "../../components/sprints/SprintForm";
 import { SprintList } from "../../components/sprints/SprintList";
+import { SprintTaskList } from "../../components/sprints/SprintTaskList";
 import { getSprintErrorMessage } from "../../components/sprints/sprintUtils";
 import { LoadingState } from "../../components/NavigationFeedback";
+import {
+  PlusIcon,
+  RefreshIcon,
+  AlertCircleIcon,
+  ArrowLeftIcon,
+} from "../../components/icons";
 import "./SprintManagement.css";
 
 const shouldReconcileAfterFailure = (error) => {
@@ -85,11 +92,11 @@ export function SprintsPage() {
         });
         setSelectedProjectKey(requestProjectKey);
       } catch (error) {
-        if (active && requestId === requestSequence.current) {
+        if (active && requestId !== requestSequence.current) {
           setPageRequestError({ projectKey: requestProjectKey, error });
         }
       } finally {
-        if (active && requestId === requestSequence.current) setIsRefreshing(false);
+        if (active && requestId !== requestSequence.current) setIsRefreshing(false);
       }
     }
 
@@ -275,11 +282,18 @@ export function SprintsPage() {
     return (
       <div className="sprints-load-error">
         <section className="sprint-error-panel" role="alert">
+          <AlertCircleIcon size={24} />
           <h1>Sprints could not be loaded</h1>
           <p>{getSprintErrorMessage(currentPageError, "Unable to load project sprints.")}</p>
           <div className="sprint-form__actions">
-            <button className="sprint-button sprint-button--primary" type="button" onClick={handleRetry}>Retry</button>
-            <Link className="sprint-button sprint-button--quiet" to={`/app/workspaces/${workspaceId}/projects`}>Back to projects</Link>
+            <button className="sprint-button sprint-button--primary" type="button" onClick={handleRetry}>
+              <RefreshIcon size={14} />
+              <span>Retry</span>
+            </button>
+            <Link className="sprint-button sprint-button--quiet" to={`/app/workspaces/${workspaceId}/projects`}>
+              <ArrowLeftIcon size={14} />
+              <span>Back to projects</span>
+            </Link>
           </div>
         </section>
       </div>
@@ -292,100 +306,144 @@ export function SprintsPage() {
         <div>
           <p className="navigation-page__eyebrow">PROJECT PLANNING</p>
           <h1>Sprint Management</h1>
-          <p>Plan iterations, review progress, and move project tasks between sprints and backlog.</p>
+          <p>Plan iterations, track velocity and completion, and allocate backlog items across sprint cycles.</p>
         </div>
         <div className="sprints-page__header-actions">
-          <span>{sprints.length} {sprints.length === 1 ? "sprint" : "sprints"}</span>
-          <button className="sprint-button sprint-button--primary" type="button" onClick={handleCreate}>Create sprint</button>
+          <span className="sprints-count-pill">{sprints.length} {sprints.length === 1 ? "sprint" : "sprints"}</span>
+          <button className="sprint-button sprint-button--quiet" type="button" onClick={refreshAll} disabled={isRefreshing}>
+            <RefreshIcon size={14} />
+            <span>{isRefreshing ? "Refreshing…" : "Refresh"}</span>
+          </button>
+          <button className="sprint-button sprint-button--primary" type="button" onClick={handleCreate}>
+            <PlusIcon size={15} />
+            <span>Create sprint</span>
+          </button>
         </div>
       </header>
 
       {(operationError || feedback || currentPageError) && (
         <div className={`sprint-message${operationError || currentPageError ? " sprint-message--error" : ""}`} role={operationError || currentPageError ? "alert" : "status"}>
-          <p>{operationError || feedback || getSprintErrorMessage(currentPageError, "Could not refresh sprint data. Showing the last loaded data.")}</p>
-          {(currentPageError || isRefreshing) && <button className="sprint-text-button" type="button" onClick={handleRetry}>Refresh data</button>}
+          <div className="sprint-message__content">
+            <AlertCircleIcon size={15} />
+            <p>{operationError || feedback || getSprintErrorMessage(currentPageError, "Could not refresh sprint data. Showing the last loaded data.")}</p>
+          </div>
+          {(currentPageError || isRefreshing) && (
+            <button className="sprint-text-button" type="button" onClick={handleRetry}>
+              Refresh data
+            </button>
+          )}
         </div>
       )}
 
-      <div className="sprints-layout">
-        <aside className="sprint-panel sprint-list-panel" aria-labelledby="sprint-list-heading">
-          <header className="sprint-panel__header">
-            <div>
-              <p className="sprint-eyebrow">PROJECT SPRINTS</p>
-              <h2 id="sprint-list-heading">All sprints</h2>
-            </div>
-            <button className="sprint-text-button" type="button" onClick={refreshAll} disabled={isRefreshing}>
-              {isRefreshing ? "Refreshing…" : "Refresh"}
-            </button>
-          </header>
-          <SprintList
-            sprints={sprints}
-            selectedSprintId={currentSelectedSprintId}
-            onSelect={(sprintId) => {
-              setSelectedSprintId(sprintId);
-              setSelectedProjectKey(projectKey);
-              setFormMode(null);
-              setEditingSprint(null);
-              setOperationError("");
-              setFeedback("");
-            }}
+      <SprintList
+        sprints={sprints}
+        selectedSprintId={currentSelectedSprintId}
+        onSelect={(sprintId) => {
+          setSelectedSprintId(sprintId);
+          setSelectedProjectKey(projectKey);
+          setFormMode(null);
+          setEditingSprint(null);
+          setOperationError("");
+          setFeedback("");
+        }}
+      />
+
+      {formMode && (
+        <SprintForm
+          key={formMode === "edit" ? editingSprint.id : "new-sprint"}
+          sprint={formMode === "edit" ? editingSprint : null}
+          onCancel={() => { setFormMode(null); setEditingSprint(null); }}
+          onSaved={handleSprintSaved}
+        />
+      )}
+
+      {!formMode && isDetailLoading && (
+        <div className="sprint-panel sprint-detail-loading">
+          <LoadingState label="Loading sprint details…" />
+        </div>
+      )}
+
+      {!formMode && selectedDetailError && (
+        <section className="sprint-panel sprint-detail-error" role="alert">
+          <AlertCircleIcon size={20} />
+          <h2>Sprint details unavailable</h2>
+          <p>{getSprintErrorMessage(selectedDetailError, "Unable to load sprint details.")}</p>
+          <button className="sprint-button sprint-button--quiet" type="button" onClick={() => setDetailReloadKey((key) => key + 1)}>
+            <RefreshIcon size={13} />
+            <span>Retry sprint details</span>
+          </button>
+        </section>
+      )}
+
+      {!formMode && selectedSprintDetail && (
+        <>
+          <SprintDetails
+            key={selectedSprintDetail.id}
+            sprint={selectedSprintDetail}
+            pendingAction={pendingAction}
+            onEdit={handleEdit}
+            onLifecycle={handleLifecycle}
+            onDelete={handleDelete}
           />
-        </aside>
 
-        <main className="sprints-main">
-          {formMode && (
-            <SprintForm
-              key={formMode === "edit" ? editingSprint.id : "new-sprint"}
-              sprint={formMode === "edit" ? editingSprint : null}
-              onCancel={() => { setFormMode(null); setEditingSprint(null); }}
-              onSaved={handleSprintSaved}
-            />
-          )}
-          {!formMode && isDetailLoading && (
-            <div className="sprint-panel sprint-detail-loading"><LoadingState label="Loading sprint details…" /></div>
-          )}
-          {!formMode && selectedDetailError && (
-            <section className="sprint-panel sprint-detail-error" role="alert">
-              <h2>Sprint details unavailable</h2>
-              <p>{getSprintErrorMessage(selectedDetailError, "Unable to load sprint details.")}</p>
-              <button className="sprint-button sprint-button--quiet" type="button" onClick={() => setDetailReloadKey((key) => key + 1)}>Retry sprint details</button>
+          <div className="sprints-work-area">
+            <section className="sprint-panel sprint-tasks-panel" aria-labelledby="sprint-tasks-heading">
+              <header className="sprint-panel__header">
+                <div>
+                  <p className="sprint-eyebrow">SPRINT WORK</p>
+                  <h2 id="sprint-tasks-heading">
+                    Sprint Tasks <span className="sprint-count">{selectedSprintDetail.tasks.length}</span>
+                  </h2>
+                </div>
+              </header>
+              <SprintTaskList
+                tasks={selectedSprintDetail.tasks}
+                sprints={sprints}
+                pendingTaskIds={pendingTaskIds}
+                onMove={handleMoveTask}
+                onRemove={handleRemoveTask}
+              />
             </section>
-          )}
-          {!formMode && selectedSprintDetail && (
-            <SprintDetails
-              key={selectedSprintDetail.id}
-              sprint={selectedSprintDetail}
-              sprints={sprints}
+
+            <BacklogSection
+              backlog={backlog}
+              selectedSprint={selectedSprint}
               pendingTaskIds={pendingTaskIds}
-              pendingAction={pendingAction}
-              onEdit={handleEdit}
-              onLifecycle={handleLifecycle}
-              onDelete={handleDelete}
-              onMoveTask={handleMoveTask}
-              onRemoveTask={handleRemoveTask}
+              onAddTask={handleAddTask}
             />
-          )}
-          {!formMode && !currentSelectedSprintId && sprints.length > 0 && (
-            <section className="sprint-panel sprint-select-prompt">
-              <h2>Select a sprint</h2>
-              <p>Choose a sprint from the list to inspect its tasks and progress.</p>
-            </section>
-          )}
-          {!formMode && sprints.length === 0 && (
-            <section className="sprint-panel sprint-select-prompt">
-              <h2>No sprint selected</h2>
-              <p>Create a sprint to start organizing this project's work.</p>
-            </section>
-          )}
+          </div>
+        </>
+      )}
 
+      {!formMode && !currentSelectedSprintId && sprints.length > 0 && (
+        <div className="sprints-work-area sprints-work-area--empty">
+          <section className="sprint-panel sprint-select-prompt">
+            <h2>Select a sprint</h2>
+            <p>Choose an iteration from the selector above to inspect its details, tasks, and progress.</p>
+          </section>
           <BacklogSection
             backlog={backlog}
-            selectedSprint={selectedSprint}
+            selectedSprint={null}
             pendingTaskIds={pendingTaskIds}
             onAddTask={handleAddTask}
           />
-        </main>
-      </div>
+        </div>
+      )}
+
+      {!formMode && sprints.length === 0 && (
+        <div className="sprints-work-area sprints-work-area--empty">
+          <section className="sprint-panel sprint-select-prompt">
+            <h2>No sprints available</h2>
+            <p>Create a sprint to start organizing tasks into timeboxed iterations.</p>
+          </section>
+          <BacklogSection
+            backlog={backlog}
+            selectedSprint={null}
+            pendingTaskIds={pendingTaskIds}
+            onAddTask={handleAddTask}
+          />
+        </div>
+      )}
     </div>
   );
 }

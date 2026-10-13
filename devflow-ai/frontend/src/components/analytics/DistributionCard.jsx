@@ -19,9 +19,10 @@ function ProgressTrack({ value, label }) {
 export function DistributionCard({ title, description, distribution, total, emptyMessage }) {
   const entries = Object.entries(distribution || {});
   const safeTotal = Number.isFinite(total) ? total : 0;
+  const isEmpty = safeTotal === 0 || entries.length === 0;
 
   return (
-    <section className="analytics-panel" aria-label={title}>
+    <section className="analytics-panel analytics-distribution-card" aria-label={title}>
       <header className="analytics-panel__header">
         <div>
           <h2>{title}</h2>
@@ -29,24 +30,28 @@ export function DistributionCard({ title, description, distribution, total, empt
         </div>
         <span className="analytics-panel__total">{formatCount(safeTotal)}</span>
       </header>
-      {safeTotal === 0 && <p className="analytics-empty-note">{emptyMessage}</p>}
-      <ul className="analytics-distribution">
-        {entries.map(([name, count]) => {
-          const share = safePercent(count, safeTotal);
-          return (
-            <li className="analytics-distribution__row" key={name}>
-              <div className="analytics-distribution__labels">
-                <span>{formatLabel(name)}</span>
-                <span>
-                  {formatCount(count)}
-                  <span className="analytics-distribution__share">{formatPercent(share)}</span>
-                </span>
-              </div>
-              <ProgressTrack value={share} label={`${formatLabel(name)} share`} />
-            </li>
-          );
-        })}
-      </ul>
+      {isEmpty ? (
+        <p className="analytics-empty-note">{emptyMessage}</p>
+      ) : (
+        <ul className="analytics-distribution">
+          {entries.map(([name, count]) => {
+            const safeCount = Number.isFinite(count) ? count : 0;
+            const share = safePercent(safeCount, safeTotal);
+            return (
+              <li className="analytics-distribution__row" key={name}>
+                <div className="analytics-distribution__labels">
+                  <span className="analytics-distribution__name">{formatLabel(name)}</span>
+                  <span className="analytics-distribution__count-wrap">
+                    <span className="analytics-distribution__count">{formatCount(safeCount)}</span>
+                    <span className="analytics-distribution__share">{formatPercent(share)}</span>
+                  </span>
+                </div>
+                <ProgressTrack value={share} label={`${formatLabel(name)} share`} />
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </section>
   );
 }

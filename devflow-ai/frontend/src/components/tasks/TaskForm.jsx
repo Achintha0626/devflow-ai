@@ -9,6 +9,7 @@ import {
   toDateInputValue,
   toTaskDate,
 } from "./taskUtils";
+import { CloseIcon } from "../icons";
 
 function getInitialValues(task) {
   return {
@@ -117,35 +118,41 @@ export function TaskForm({
           <p className="task-eyebrow">{isEditing ? "EDIT TASK" : "NEW TASK"}</p>
           <h2 id="task-form-title">{isEditing ? task.taskNumber : "Create task"}</h2>
         </div>
-        <button className="task-icon-button" type="button" onClick={onCancel} aria-label="Close task form">×</button>
+        <button className="task-icon-button" type="button" onClick={onCancel} aria-label="Close task form">
+          <CloseIcon size={16} />
+        </button>
       </header>
       <form className="task-form" onSubmit={handleSubmit}>
         <label className="task-field">
           <span>Title <b aria-hidden="true">*</b></span>
-          <input autoFocus required minLength={2} maxLength={200} value={values.title} onChange={change("title")} />
+          <input autoFocus required minLength={2} maxLength={200} value={values.title} onChange={change("title")} placeholder="Short summary of the task" />
         </label>
         <label className="task-field">
           <span>Description <b aria-hidden="true">*</b></span>
-          <textarea required minLength={1} maxLength={5000} rows={5} value={values.description} onChange={change("description")} />
+          <textarea required minLength={1} maxLength={5000} rows={5} value={values.description} onChange={change("description")} placeholder="Details, context, or acceptance requirements" />
         </label>
         <div className="task-form__row">
           <label className="task-field">
             <span>Type <b aria-hidden="true">*</b></span>
             <select required value={values.type} onChange={change("type")}>
-              {TASK_TYPES.map((type) => <option key={type} value={type}>{formatTaskLabel(type)}</option>)}
+              {TASK_TYPES.map((type) => (
+                <option key={type} value={type}>{formatTaskLabel(type)}</option>
+              ))}
             </select>
           </label>
           <label className="task-field">
             <span>Priority <b aria-hidden="true">*</b></span>
             <select required value={values.priority} onChange={change("priority")}>
-              {TASK_PRIORITIES.map((priority) => <option key={priority} value={priority}>{formatTaskLabel(priority)}</option>)}
+              {TASK_PRIORITIES.map((priority) => (
+                <option key={priority} value={priority}>{formatTaskLabel(priority)}</option>
+              ))}
             </select>
           </label>
         </div>
         <div className="task-form__row">
           <label className="task-field">
             <span>Story points</span>
-            <input type="number" min={1} max={21} step={1} value={values.storyPoints} onChange={change("storyPoints")} />
+            <input type="number" min={1} max={21} step={1} value={values.storyPoints} onChange={change("storyPoints")} placeholder="e.g. 3, 5, 8" />
           </label>
           <label className="task-field">
             <span>Due date</span>
@@ -157,7 +164,9 @@ export function TaskForm({
           <span>Requirement</span>
           <select value={values.requirementId} onChange={change("requirementId")}>
             <option value="">No requirement</option>
-            {requirements.map((requirement) => <option key={requirement.id} value={requirement.id}>{requirement.title}</option>)}
+            {requirements.map((requirement) => (
+              <option key={requirement.id} value={requirement.id}>{requirement.title}</option>
+            ))}
           </select>
         </label>
         {requirementError && <p className="task-option-warning" role="status">Requirements could not be loaded. You can leave this task unlinked.</p>}

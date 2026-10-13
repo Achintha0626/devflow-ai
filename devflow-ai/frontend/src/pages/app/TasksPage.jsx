@@ -14,6 +14,13 @@ import {
   getTaskDisplayName,
   getTaskErrorMessage,
 } from "../../components/tasks/taskUtils";
+import {
+  PlusIcon,
+  ChevronRightIcon,
+  AlertCircleIcon,
+  RefreshIcon,
+  UserIcon,
+} from "../../components/icons";
 import "./TaskManagement.css";
 
 const EMPTY_FILTERS = {
@@ -39,6 +46,9 @@ function hasActiveFilters(filters) {
 }
 
 function TaskRow({ task, selected, onSelect }) {
+  const statusSlug = (task.status || "").toLowerCase();
+  const prioritySlug = (task.priority || "").toLowerCase();
+
   return (
     <button
       className={`task-list-row${selected ? " is-selected" : ""}`}
@@ -52,15 +62,30 @@ function TaskRow({ task, selected, onSelect }) {
           <span className="task-list-row__title">{task.title}</span>
         </span>
         <span className="task-list-row__meta">
-          <span className="task-badge">{formatTaskLabel(task.status)}</span>
-          <span>{formatTaskLabel(task.priority)}</span>
-          <span>{formatTaskLabel(task.type)}</span>
-          <span>{task.storyPoints == null ? "No points" : `${task.storyPoints} points`}</span>
-          <span>{getTaskDisplayName(task.assignee)}</span>
-          <span>{task.dueDate ? formatTaskDate(task.dueDate) : "No due date"}</span>
+          <span className={`task-badge task-badge--${statusSlug}`}>
+            {formatTaskLabel(task.status)}
+          </span>
+          <span className={`task-priority-badge task-priority--${prioritySlug}`}>
+            {formatTaskLabel(task.priority)}
+          </span>
+          <span className="task-type-badge">{formatTaskLabel(task.type)}</span>
+          <span className="task-points-badge">
+            {task.storyPoints == null ? "—" : `${task.storyPoints} pts`}
+          </span>
+          <span className="task-assignee-preview">
+            <UserIcon size={12} />
+            <span>{getTaskDisplayName(task.assignee)}</span>
+          </span>
+          {task.dueDate && (
+            <span className="task-due-date">
+              Due {formatTaskDate(task.dueDate)}
+            </span>
+          )}
         </span>
       </span>
-      <span className="task-list-row__arrow" aria-hidden="true">›</span>
+      <span className="task-list-row__arrow" aria-hidden="true">
+        <ChevronRightIcon size={16} />
+      </span>
     </button>
   );
 }
@@ -189,7 +214,7 @@ export function TasksPage() {
         <div>
           <p className="navigation-page__eyebrow">{project.name.toUpperCase()} / TASKS</p>
           <h1>Tasks</h1>
-          <p>Search, filter, and manage tasks in this project.</p>
+          <p>Search, filter, and manage tasks across your development workflow.</p>
         </div>
         <button
           className="task-button task-button--primary"
@@ -201,7 +226,8 @@ export function TasksPage() {
             setFeedback("");
           }}
         >
-          <span aria-hidden="true">+</span> Create task
+          <PlusIcon size={15} />
+          <span>Create task</span>
         </button>
       </header>
 
@@ -219,8 +245,12 @@ export function TasksPage() {
 
       {listError && (
         <div className="task-inline-error tasks-page__error" role="alert">
+          <AlertCircleIcon size={16} />
           <p>{getTaskErrorMessage(listError, "Unable to load project tasks.")}</p>
-          <button className="task-button task-button--quiet" type="button" onClick={() => setReloadKey((value) => value + 1)}>Retry</button>
+          <button className="task-button task-button--quiet" type="button" onClick={() => setReloadKey((value) => value + 1)}>
+            <RefreshIcon size={13} />
+            <span>Retry</span>
+          </button>
           {listError?.response?.status === 404 && (
             <Link className="task-text-button" to={`/app/workspaces/${workspaceId}/projects`}>Back to projects</Link>
           )}
@@ -234,33 +264,52 @@ export function TasksPage() {
         <section className="tasks-list-panel" aria-labelledby="tasks-list-title">
           <header className="tasks-list-panel__header">
             <h2 id="tasks-list-title">Project tasks</h2>
-            {!isLoading && <span>{tasks.length} {tasks.length === 1 ? "task" : "tasks"}</span>}
+            {!isLoading && (
+              <span className="tasks-count-pill">
+                {tasks.length} {tasks.length === 1 ? "task" : "tasks"}
+              </span>
+            )}
           </header>
-          {isLoading && <div className="task-loading" role="status">Loading tasks…</div>}
+          {isLoading && (
+            <div className="task-loading" role="status">
+              <span className="navigation-state__spinner" aria-hidden="true" />
+              <span>Loading tasks…</span>
+            </div>
+          )}
           {!isLoading && tasks.length > 0 && (
-            <TaskList tasks={tasks} selectedTaskId={selectedTaskId} onSelect={(taskId) => {
-              setSelectedTaskId(taskId);
-              setEditingTask(null);
-              setPanelMode("details");
-              setFeedback("");
-            }} />
+            <TaskList
+              tasks={tasks}
+              selectedTaskId={selectedTaskId}
+              onSelect={(taskId) => {
+                setSelectedTaskId(taskId);
+                setEditingTask(null);
+                setPanelMode("details");
+                setFeedback("");
+              }}
+            />
           )}
           {!isLoading && !listError && tasks.length === 0 && filtersApplied && (
             <div className="task-empty-state">
               <h3>No matching tasks</h3>
-              <p>Try changing or clearing the current filters.</p>
+              <p>Try changing or clearing the current filters to see more tasks.</p>
               <button className="task-button task-button--quiet" type="button" onClick={clearFilters}>Clear filters</button>
             </div>
           )}
           {!isLoading && !listError && tasks.length === 0 && !filtersApplied && (
             <div className="task-empty-state">
               <h3>No tasks yet</h3>
-              <p>Create the first task for {project.name}.</p>
-              <button className="task-button task-button--quiet" type="button" onClick={() => setPanelMode("create")}>Create task</button>
+              <p>Create the first engineering task for {project.name}.</p>
+              <button className="task-button task-button--primary" type="button" onClick={() => setPanelMode("create")}>
+                <PlusIcon size={14} />
+                <span>Create task</span>
+              </button>
             </div>
           )}
           {!isLoading && listError && tasks.length === 0 && (
-            <div className="task-empty-state"><h3>Tasks could not be loaded</h3><p>Retry the request to try again.</p></div>
+            <div className="task-empty-state">
+              <h3>Tasks could not be loaded</h3>
+              <p>Retry the request to load tasks again.</p>
+            </div>
           )}
         </section>
 
@@ -300,8 +349,8 @@ export function TasksPage() {
           )}
           {panelMode === "empty" && (
             <aside className="task-panel task-inspector-empty">
-              <h2>Task details</h2>
-              <p>Select a task to view its details and activity, or create a task.</p>
+              <h2>Task Inspector</h2>
+              <p>Select a task from the list to view its details, history, and status transitions, or create a new task.</p>
             </aside>
           )}
         </div>

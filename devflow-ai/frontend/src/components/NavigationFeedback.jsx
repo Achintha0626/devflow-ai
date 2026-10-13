@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
 import { getErrorMessage } from "../utils/errorUtils";
+import { AlertCircleIcon, RefreshIcon, ArrowLeftIcon } from "./icons";
 
 export function LoadingState({ label }) {
   return (
     <div className="navigation-state" role="status" aria-live="polite">
       <span className="navigation-state__spinner" aria-hidden="true" />
-      <span>{label}</span>
+      <span className="navigation-state__label">{label}</span>
     </div>
   );
 }
@@ -20,16 +21,21 @@ export function ErrorState({ error, onRetry, backTo, backLabel }) {
 
   return (
     <section className="navigation-state navigation-state--error" role="alert">
+      <div className="navigation-state__error-icon" aria-hidden="true">
+        <AlertCircleIcon size={24} />
+      </div>
       <h2>Unable to load</h2>
       <p>{message}</p>
       <div className="navigation-state__actions">
         {onRetry && (
           <button className="navigation-button" onClick={onRetry} type="button">
-            Try again
+            <RefreshIcon size={14} />
+            <span>Try again</span>
           </button>
         )}
         <Link className="navigation-button navigation-button--quiet" to={backTo}>
-          {backLabel}
+          <ArrowLeftIcon size={14} />
+          <span>{backLabel}</span>
         </Link>
       </div>
     </section>

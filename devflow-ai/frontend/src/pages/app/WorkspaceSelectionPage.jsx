@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { listWorkspacesRequest } from "../../api/workspaceApi";
 import { ErrorState, LoadingState } from "../../components/NavigationFeedback";
+import { ArrowRightIcon } from "../../components/icons";
 import "./NavigationPages.css";
 
 export function WorkspaceSelectionPage() {
@@ -37,7 +38,7 @@ export function WorkspaceSelectionPage() {
       <header className="navigation-page__heading">
         <p className="navigation-page__eyebrow">DEVFLOW AI / WORKSPACES</p>
         <h1>Select a workspace</h1>
-        <p>Choose a workspace to view its projects.</p>
+        <p>Choose an engineering workspace to access its projects, tasks, and sprints.</p>
       </header>
 
       {isLoading && <LoadingState label="Loading your workspaces…" />}
@@ -72,8 +73,12 @@ export function WorkspaceSelectionPage() {
                   )}
                 </span>
                 <span className="navigation-item__meta">
-                  {workspace.role && <span>{workspace.role.replaceAll("_", " ")}</span>}
-                  <span aria-hidden="true">→</span>
+                  {workspace.role && (
+                    <span className="navigation-item__role">
+                      {workspace.role.replaceAll("_", " ")}
+                    </span>
+                  )}
+                  <ArrowRightIcon size={16} />
                 </span>
               </Link>
             </li>

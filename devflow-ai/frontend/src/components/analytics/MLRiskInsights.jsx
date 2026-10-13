@@ -1,4 +1,5 @@
 import { formatActivityTime, formatLabel } from "./analyticsUtils";
+import { AlertCircleIcon, RefreshIcon } from "../icons";
 
 function formatDelayProbability(value) {
   if (!Number.isFinite(value)) return "";
@@ -21,9 +22,11 @@ function isDevModel(version) {
 }
 
 function RiskLevelBadge({ level }) {
+  const norm = (level || "").toLowerCase();
   return (
-    <span className={`risk-badge risk-badge--${(level || "").toLowerCase()}`}>
-      {level || ""}
+    <span className={`risk-badge risk-badge--${norm}`}>
+      <span className="risk-badge__dot" aria-hidden="true" />
+      {level || "Unknown"}
     </span>
   );
 }
@@ -115,10 +118,14 @@ function MLRiskInsightsError({ error, onRetry }) {
 
   return (
     <div className="risk-section__error" role="alert">
-      <p className="risk-section__error-message">{message}</p>
+      <div className="risk-section__error-header">
+        <AlertCircleIcon size={16} />
+        <p className="risk-section__error-message">{message}</p>
+      </div>
       {onRetry && (
         <button className="navigation-button" type="button" onClick={onRetry}>
-          Try again
+          <RefreshIcon size={13} />
+          <span>Try again</span>
         </button>
       )}
     </div>
@@ -169,19 +176,28 @@ function MLRiskInsightsContent({ data }) {
     <div>
       {hasDevModel && (
         <div className="risk-notice risk-notice--dev">
-          <strong>Development model notice:</strong> Predictions were generated using a development model ({modelVersions.filter(isDevModel).join(", ")}). These are development estimates and should not be interpreted as production-grade forecasting.
+          <AlertCircleIcon size={16} className="risk-notice__icon" />
+          <div>
+            <strong>Development model notice:</strong> Predictions were generated using a development model ({modelVersions.filter(isDevModel).join(", ")}). These are development estimates and should not be interpreted as production-grade forecasting.
+          </div>
         </div>
       )}
 
       {totalWithout > 0 && (
         <div className="risk-notice risk-notice--coverage">
-          Risk insights currently cover {totalWithPredictions} of {totalTasks} task{totalTasks !== 1 ? "s" : ""}. Tasks without stored predictions are excluded from the risk calculations.
+          <AlertCircleIcon size={16} className="risk-notice__icon" />
+          <div>
+            Risk insights currently cover {totalWithPredictions} of {totalTasks} task{totalTasks !== 1 ? "s" : ""}. Tasks without stored predictions are excluded from the risk calculations.
+          </div>
         </div>
       )}
 
       {hasNoPredictions && (
         <div className="risk-notice risk-notice--empty">
-          No stored risk predictions are available for this project yet. Run predictions on individual tasks to populate this section.
+          <AlertCircleIcon size={16} className="risk-notice__icon" />
+          <div>
+            No stored risk predictions are available for this project yet. Run predictions on individual tasks to populate this section.
+          </div>
         </div>
       )}
 

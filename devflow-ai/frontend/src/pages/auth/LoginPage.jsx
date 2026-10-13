@@ -1,14 +1,7 @@
-﻿/**
- * LoginPage.jsx
- *
- * Controlled-form login page.
- * On success: navigates to the originally requested protected route, or /app.
- * On failure: displays the exact message returned by the backend.
- */
-
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ThemeToggle } from "../../components/ThemeToggle";
+import { LogoIcon, AlertCircleIcon } from "../../components/icons";
 import { useAuth } from "../../hooks/useAuth";
 import { getErrorMessage } from "../../utils/errorUtils";
 import "./AuthPages.css";
@@ -18,11 +11,10 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // If the user was redirected here from a protected route, send them back there
-  // after successful login.
   const from = location.state?.from?.pathname || "/app";
 
   const [form, setForm] = useState({ email: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -46,26 +38,32 @@ export function LoginPage() {
   }
 
   return (
-    <>
-      <div className="auth-page-topbar">
+    <div className="auth-container">
+      <header className="auth-page-topbar">
         <ThemeToggle />
-      </div>
+      </header>
+
       <div className="auth-page">
         <div className="auth-card">
           <div className="auth-card__header">
-            <span className="auth-card__logo" aria-hidden="true">⬡</span>
+            <div className="auth-card__logo-container">
+              <span className="auth-card__logo" aria-hidden="true">
+                <LogoIcon size={26} />
+              </span>
+            </div>
             <h1 className="auth-card__title">Sign in to DevFlow AI</h1>
             <p className="auth-card__subtitle">
               Don&apos;t have an account?{" "}
               <Link id="register-link" to="/register" className="auth-link">
-                Create one
+                Create an account
               </Link>
             </p>
           </div>
 
           {error && (
             <div id="login-error" className="auth-error" role="alert">
-              {error}
+              <AlertCircleIcon size={16} />
+              <span>{error}</span>
             </div>
           )}
 
@@ -83,25 +81,35 @@ export function LoginPage() {
                 value={form.email}
                 onChange={handleChange}
                 className="auth-input"
-                placeholder="you@example.com"
+                placeholder="developer@devflow.ai"
                 disabled={isSubmitting}
               />
             </div>
 
             <div className="auth-field">
-              <label htmlFor="login-password" className="auth-label">
-                Password
-              </label>
+              <div className="auth-label-row">
+                <label htmlFor="login-password" className="auth-label">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  className="auth-password-toggle"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  tabIndex={-1}
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
               <input
                 id="login-password"
                 name="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 autoComplete="current-password"
                 required
                 value={form.password}
                 onChange={handleChange}
                 className="auth-input"
-                placeholder="••••••••"
+                placeholder="••••••••••••"
                 disabled={isSubmitting}
               />
             </div>
@@ -112,11 +120,11 @@ export function LoginPage() {
               className="auth-btn"
               disabled={isSubmitting}
             >
-              {isSubmitting ? "Signing in…" : "Sign in"}
+              {isSubmitting ? "Signing in…" : "Sign in to workspace"}
             </button>
           </form>
         </div>
       </div>
-    </>
+    </div>
   );
 }

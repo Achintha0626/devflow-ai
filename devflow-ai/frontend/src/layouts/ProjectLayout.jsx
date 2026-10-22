@@ -11,6 +11,7 @@ import {
   RequirementsIcon,
   AIPlannerIcon,
   AnalyticsIcon,
+  UserIcon,
   ArrowLeftIcon,
   ChevronRightIcon,
   MenuIcon,
@@ -24,6 +25,7 @@ export function ProjectLayout() {
   const { workspaceId, projectId } = useParams();
   const location = useLocation();
   const [workspace, setWorkspace] = useState(null);
+  const [membership, setMembership] = useState(null);
   const [project, setProject] = useState(null);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,6 +46,7 @@ export function ProjectLayout() {
         ]);
         if (active) {
           setWorkspace(workspaceResponse.data.workspace);
+          setMembership(workspaceResponse.data.membership);
           setProject(projectResponse.data);
         }
       } catch (requestError) {
@@ -125,6 +128,11 @@ export function ProjectLayout() {
       label: "Analytics",
       icon: AnalyticsIcon,
     },
+    {
+      to: `/app/workspaces/${workspaceId}/projects/${projectId}/members`,
+      label: "Members",
+      icon: UserIcon,
+    },
   ];
 
   return (
@@ -169,7 +177,8 @@ export function ProjectLayout() {
           </div>
           {project.status && (
             <span className="project-status project-status--subtle">
-              {project.status.replaceAll("_", " ")}
+              <span className={`project-status__dot project-status__dot--${project.status.toLowerCase()}`} aria-hidden="true" />
+              <span>{project.status.replaceAll("_", " ")}</span>
             </span>
           )}
         </div>
@@ -194,6 +203,7 @@ export function ProjectLayout() {
                   <Icon size={16} />
                 </span>
                 <span className="project-nav__link-text">{item.label}</span>
+                {item.highlight && <span className="project-nav__pill">AI</span>}
               </NavLink>
             );
           })}
@@ -222,7 +232,7 @@ export function ProjectLayout() {
           <ChevronRightIcon size={12} className="project-content__breadcrumb-separator" />
           <span className="project-content__breadcrumb-current" title={project.name}>{project.name}</span>
         </div>
-        <Outlet context={{ workspace, project }} />
+        <Outlet context={{ workspace, project, membership }} />
       </section>
     </div>
   );

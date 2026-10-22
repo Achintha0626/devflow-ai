@@ -7,15 +7,15 @@ import {
 import { SearchIcon, FilterIcon } from "../icons";
 
 export function TaskFilters({
-  filters,
-  members,
-  requirements,
+  filters = {},
+  members = [],
+  requirements = [],
   onChange,
   onSubmit,
   onClear,
-  hasFilters,
+  hasFilters = false,
 }) {
-  const update = (field) => (event) => onChange({ ...filters, [field]: event.target.value });
+  const update = (field) => (event) => onChange?.({ ...(filters || {}), [field]: event.target.value });
 
   return (
     <form className="task-filters" onSubmit={onSubmit}>
@@ -25,7 +25,7 @@ export function TaskFilters({
           <SearchIcon size={14} className="task-filter__icon" />
           <input
             type="search"
-            value={filters.search}
+            value={filters?.search ?? ""}
             onChange={update("search")}
             maxLength={100}
             placeholder="Search by ID or title…"
@@ -34,7 +34,7 @@ export function TaskFilters({
       </label>
       <label className="task-filter">
         <span>Status</span>
-        <select value={filters.status} onChange={update("status")}>
+        <select value={filters?.status ?? ""} onChange={update("status")}>
           <option value="">All statuses</option>
           {TASK_STATUSES.map((status) => (
             <option key={status} value={status}>{formatTaskLabel(status)}</option>
@@ -43,7 +43,7 @@ export function TaskFilters({
       </label>
       <label className="task-filter">
         <span>Priority</span>
-        <select value={filters.priority} onChange={update("priority")}>
+        <select value={filters?.priority ?? ""} onChange={update("priority")}>
           <option value="">All priorities</option>
           {TASK_PRIORITIES.map((priority) => (
             <option key={priority} value={priority}>{formatTaskLabel(priority)}</option>
@@ -52,7 +52,7 @@ export function TaskFilters({
       </label>
       <label className="task-filter">
         <span>Type</span>
-        <select value={filters.type} onChange={update("type")}>
+        <select value={filters?.type ?? ""} onChange={update("type")}>
           <option value="">All types</option>
           {TASK_TYPES.map((type) => (
             <option key={type} value={type}>{formatTaskLabel(type)}</option>
@@ -61,7 +61,7 @@ export function TaskFilters({
       </label>
       <label className="task-filter">
         <span>Assignee</span>
-        <select value={filters.assigneeId} onChange={update("assigneeId")}>
+        <select value={filters?.assigneeId ?? ""} onChange={update("assigneeId")}>
           <option value="">All assignees</option>
           {members.map((member) => (
             <option key={member.userId} value={member.userId}>
@@ -72,7 +72,7 @@ export function TaskFilters({
       </label>
       <label className="task-filter task-filter--requirement">
         <span>Requirement</span>
-        <select value={filters.requirementId} onChange={update("requirementId")}>
+        <select value={filters?.requirementId ?? ""} onChange={update("requirementId")}>
           <option value="">All requirements</option>
           {requirements.map((requirement) => (
             <option key={requirement.id} value={requirement.id}>{requirement.title}</option>

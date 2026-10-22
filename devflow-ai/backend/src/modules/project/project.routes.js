@@ -12,6 +12,7 @@ const {
   replaceTechnologies,
   addMember,
   listMembers,
+  changeMemberRole,
   removeMember,
   remove,
 } = require("./project.controller");
@@ -20,6 +21,7 @@ const {
   updateProjectSchema,
   technologiesSchema,
   addProjectMemberSchema,
+  changeProjectMemberRoleSchema,
 } = require("./project.validation");
 
 const router = express.Router();
@@ -33,7 +35,8 @@ router.patch("/:workspaceId/projects/:projectId", authenticate, requireWorkspace
 router.put("/:workspaceId/projects/:projectId/technologies", authenticate, requireWorkspaceMember, requireProjectAccess, workspaceProjectManager, validate(technologiesSchema), replaceTechnologies);
 router.post("/:workspaceId/projects/:projectId/members", authenticate, requireWorkspaceMember, requireProjectAccess, workspaceProjectManager, validate(addProjectMemberSchema), addMember);
 router.get("/:workspaceId/projects/:projectId/members", authenticate, requireWorkspaceMember, requireProjectAccess, listMembers);
-router.delete("/:workspaceId/projects/:projectId/members/:memberId", authenticate, requireWorkspaceMember, requireProjectAccess, workspaceProjectManager, removeMember);
+router.patch("/:workspaceId/projects/:projectId/members/:memberId/role", authenticate, requireWorkspaceMember, requireProjectAccess, workspaceProjectManager, validate(changeProjectMemberRoleSchema), changeMemberRole);
+router.delete("/:workspaceId/projects/:projectId/members/:memberId", authenticate, requireWorkspaceMember, requireProjectAccess, requireWorkspaceRole("ADMIN"), removeMember);
 router.delete("/:workspaceId/projects/:projectId", authenticate, requireWorkspaceMember, requireProjectAccess, requireWorkspaceRole("ADMIN"), remove);
 
 module.exports = router;

@@ -67,7 +67,6 @@ const buildFeaturePayload = async ({ projectId, task, now }) => {
   const sprintCompletedTasks = sprintGroups.find((group) => group.status === "DONE")?._count._all || 0;
 
   const taskAgeDays = Math.max(0, (now.getTime() - task.createdAt.getTime()) / MS_PER_DAY);
-  // Development fallback: tasks without due dates use 0 until production due-date policy is defined.
   const daysUntilDue = task.dueDate ? (task.dueDate.getTime() - now.getTime()) / MS_PER_DAY : 0;
   const sprintDaysRemaining = task.sprint?.endDate
     ? Math.max(0, (task.sprint.endDate.getTime() - now.getTime()) / MS_PER_DAY)

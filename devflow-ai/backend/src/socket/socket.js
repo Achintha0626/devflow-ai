@@ -65,9 +65,16 @@ const hasProjectAccess = async (userId, workspaceId, projectId) => {
   return Boolean(projectMember);
 };
 
+const getSocketCorsOrigin = () => {
+  const raw = process.env.FRONTEND_URL;
+  if (!raw) return true;
+  const origins = raw.split(",").map((item) => item.trim()).filter(Boolean);
+  return origins.length === 1 ? origins[0] : origins;
+};
+
 const initializeSocket = (server) => {
   io = new Server(server, {
-    cors: { origin: true, credentials: true },
+    cors: { origin: getSocketCorsOrigin(), credentials: true },
   });
 
   io.use(authenticateSocket);

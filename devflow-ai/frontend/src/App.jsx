@@ -12,6 +12,8 @@ import { ProjectSelectionPage } from "./pages/app/ProjectSelectionPage";
 import { RequirementsPage } from "./pages/app/RequirementsPage";
 import { SprintsPage } from "./pages/app/SprintsPage";
 import { TasksPage } from "./pages/app/TasksPage";
+import { ProjectMembersPage } from "./pages/app/ProjectMembersPage";
+import { WorkspaceMembersPage } from "./pages/app/WorkspaceMembersPage";
 import { WorkspaceSelectionPage } from "./pages/app/WorkspaceSelectionPage";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { RegisterPage } from "./pages/auth/RegisterPage";
@@ -37,6 +39,10 @@ function App() {
                 element={<ProjectSelectionPage />}
               />
               <Route
+                path="workspaces/:workspaceId/members"
+                element={<WorkspaceMembersPage />}
+              />
+              <Route
                 path="workspaces/:workspaceId/projects/:projectId"
                 element={<ProjectLayout />}
               >
@@ -47,6 +53,7 @@ function App() {
                 <Route path="requirements" element={<RequirementsPage />} />
                 <Route path="ai-planner" element={<AIPlannerPage />} />
                 <Route path="analytics" element={<AnalyticsPage />} />
+                <Route path="members" element={<ProjectMembersPage />} />
               </Route>
             </Route>
           </Route>

@@ -59,3 +59,36 @@ export function toDateInputValue(value) {
 export function toTaskDate(value) {
   return value ? new Date(`${value}T00:00:00.000Z`).toISOString() : null;
 }
+
+export const EMPTY_FILTERS = {
+  search: "",
+  status: "",
+  priority: "",
+  type: "",
+  assigneeId: "",
+  requirementId: "",
+};
+
+export function getApiFilters(filters = {}) {
+  const result = {};
+  const search = typeof filters?.search === "string" ? filters.search.trim() : "";
+  if (search) {
+    result.search = search.slice(0, 100);
+  }
+  ["status", "priority", "type", "assigneeId", "requirementId"].forEach((key) => {
+    if (filters?.[key]) {
+      result[key] = filters[key];
+    }
+  });
+  return result;
+}
+
+export function hasActiveFilters(filters = {}) {
+  const search = typeof filters?.search === "string" ? filters.search.trim() : "";
+  if (search) {
+    return true;
+  }
+  return ["status", "priority", "type", "assigneeId", "requirementId"].some(
+    (key) => Boolean(filters?.[key])
+  );
+}

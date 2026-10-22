@@ -98,27 +98,36 @@ const validateTaskRelations = async (tx, { projectId, requirementId, assigneeId 
   }
 };
 
-const createTask = async ({ project, userId, task }) => withSequenceRetry(() => prisma.$transaction(async (tx) => {
-  await validateTaskRelations(tx, {
-    projectId: project.id,
-    requirementId: task.requirementId,
-    assigneeId: task.assigneeId,
-  });
-  const number = await allocateTaskNumber(tx, project.id, project.key);
-  const createdTask = await tx.task.create({
-    data: {
+const createTask = async ({ project, userId, task }) => {
+  const createdTask = await withSequenceRetry(() => prisma.$transaction(async (tx) => {
+    await validateTaskRelations(tx, {
       projectId: project.id,
-      ...number,
-      ...task,
-      createdById: userId,
-    },
-    select: safeTaskSelect,
+      requirementId: task.requirementId,
+      assigneeId: task.assigneeId,
+    });
+    const number = await allocateTaskNumber(tx, project.id, project.key);
+    const newTask = await tx.task.create({
+      data: {
+        projectId: project.id,
+        ...number,
+        ...task,
+        createdById: userId,
+      },
+      select: safeTaskSelect,
+    });
+    await recordTaskActivity({ db: tx, taskId: newTask.id, actorId: userId, type: "TASK_CREATED" });
+    return newTask;
+  }));
+  await enqueueTaskRiskEvaluation({
+    workspaceId: project.workspaceId,
+    projectId: project.id,
+    taskId: createdTask.id,
+    reason: "TASK_CREATED",
   });
-  await recordTaskActivity({ db: tx, taskId: createdTask.id, actorId: userId, type: "TASK_CREATED" });
   return createdTask;
-}));
+};
 
-const listTasks = async ({ projectId, filters }) => prisma.task.findMany({
+const listTasks = async ({ projectId, filters = {} }) => prisma.task.findMany({
   where: {
     projectId,
     ...(filters.status ? { status: filters.status } : {}),
@@ -221,59 +230,68 @@ const deleteTask = async ({ projectId, taskId }) => {
   if (result.count !== 1) throw new Error("TASK_NOT_FOUND");
 };
 
-const convertSuggestionToTask = async ({ project, requirementId, suggestionId, userId, task }) => withSequenceRetry(() => prisma.$transaction(async (tx) => {
-  const suggestion = await tx.aISuggestedTask.findFirst({
-    where: {
-      id: suggestionId,
-      aiGeneration: {
-        requirementId,
-        requirement: { projectId: project.id },
+const convertSuggestionToTask = async ({ project, requirementId, suggestionId, userId, task }) => {
+  const createdTask = await withSequenceRetry(() => prisma.$transaction(async (tx) => {
+    const suggestion = await tx.aISuggestedTask.findFirst({
+      where: {
+        id: suggestionId,
+        aiGeneration: {
+          requirementId,
+          requirement: { projectId: project.id },
+        },
       },
-    },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      type: true,
-      priority: true,
-      estimatedStoryPoints: true,
-      status: true,
-      task: { select: { id: true } },
-    },
-  });
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        type: true,
+        priority: true,
+        estimatedStoryPoints: true,
+        status: true,
+        task: { select: { id: true } },
+      },
+    });
 
-  if (!suggestion) throw new Error("SUGGESTION_NOT_FOUND");
-  if (suggestion.task) throw new Error("SUGGESTION_ALREADY_CONVERTED");
-  if (!["APPROVED", "EDITED"].includes(suggestion.status)) throw new Error("SUGGESTION_NOT_CONVERTIBLE");
+    if (!suggestion) throw new Error("SUGGESTION_NOT_FOUND");
+    if (suggestion.task) throw new Error("SUGGESTION_ALREADY_CONVERTED");
+    if (!["APPROVED", "EDITED"].includes(suggestion.status)) throw new Error("SUGGESTION_NOT_CONVERTIBLE");
 
-  await validateTaskRelations(tx, {
-    projectId: project.id,
-    requirementId,
-    assigneeId: task.assigneeId,
-  });
-  const number = await allocateTaskNumber(tx, project.id, project.key);
-
-  const createdTask = await tx.task.create({
-    data: {
+    await validateTaskRelations(tx, {
       projectId: project.id,
       requirementId,
-      aiSuggestedTaskId: suggestion.id,
-      ...number,
-      title: suggestion.title,
-      description: suggestion.description,
-      type: suggestion.type,
-      priority: suggestion.priority,
-      storyPoints: suggestion.estimatedStoryPoints,
-      status: "TODO",
       assigneeId: task.assigneeId,
-      dueDate: task.dueDate,
-      createdById: userId,
-    },
-    select: safeTaskSelect,
+    });
+    const number = await allocateTaskNumber(tx, project.id, project.key);
+
+    const newTask = await tx.task.create({
+      data: {
+        projectId: project.id,
+        requirementId,
+        aiSuggestedTaskId: suggestion.id,
+        ...number,
+        title: suggestion.title,
+        description: suggestion.description,
+        type: suggestion.type,
+        priority: suggestion.priority,
+        storyPoints: suggestion.estimatedStoryPoints,
+        status: "TODO",
+        assigneeId: task.assigneeId,
+        dueDate: task.dueDate,
+        createdById: userId,
+      },
+      select: safeTaskSelect,
+    });
+    await recordTaskActivity({ db: tx, taskId: newTask.id, actorId: userId, type: "TASK_CREATED" });
+    return newTask;
+  }));
+  await enqueueTaskRiskEvaluation({
+    workspaceId: project.workspaceId,
+    projectId: project.id,
+    taskId: createdTask.id,
+    reason: "TASK_CREATED",
   });
-  await recordTaskActivity({ db: tx, taskId: createdTask.id, actorId: userId, type: "TASK_CREATED" });
   return createdTask;
-}));
+};
 
 module.exports = {
   createTask,

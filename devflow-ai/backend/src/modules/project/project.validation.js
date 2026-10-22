@@ -60,10 +60,15 @@ const addProjectMemberSchema = z.object({
   role: projectRoleSchema,
 }).strict();
 
+const changeProjectMemberRoleSchema = z.object({
+  role: projectRoleSchema,
+}).strict();
+
 module.exports = {
   projectStatusSchema,
   createProjectSchema,
   updateProjectSchema,
   technologiesSchema,
   addProjectMemberSchema,
+  changeProjectMemberRoleSchema,
 };

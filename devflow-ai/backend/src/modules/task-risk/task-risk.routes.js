@@ -21,6 +21,13 @@ router.get(
   requireProjectAccess,
   getRisk,
 );
+router.post(
+  "/:workspaceId/projects/:projectId/tasks/:taskId/risk",
+  authenticate,
+  requireWorkspaceMember,
+  requireProjectAccess,
+  getRisk,
+);
 router.get(
   "/:workspaceId/projects/:projectId/tasks/:taskId/risk/history",
   authenticate,

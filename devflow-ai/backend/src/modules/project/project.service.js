@@ -67,11 +67,9 @@ const createProject = async ({ workspaceId, userId, workspaceRole, name, key, de
             category: technology.category,
           })),
         },
-        ...(workspaceRole === "PROJECT_MANAGER" ? {
-          members: {
-            create: { userId, role: "PROJECT_MANAGER" },
-          },
-        } : {}),
+        members: {
+          create: { userId, role: "PROJECT_MANAGER" },
+        },
       },
       select: safeProjectSelect,
     });
@@ -178,7 +176,14 @@ const replaceProjectTechnologies = async ({ projectId, workspaceId, technologies
   });
 };
 
-const addProjectMember = async ({ projectId, workspaceId, userId, role }) => {
+const addProjectMember = async ({ projectId, workspaceId, userId, role, actorRole }) => {
+  if (actorRole && actorRole !== "ADMIN" && actorRole !== "PROJECT_MANAGER") {
+    throw new Error("INSUFFICIENT_WORKSPACE_PERMISSIONS");
+  }
+  if (actorRole === "PROJECT_MANAGER" && role === "PROJECT_MANAGER") {
+    throw new Error("CANNOT_ASSIGN_PROJECT_MANAGER_ROLE");
+  }
+
   const project = await prisma.project.findFirst({
     where: { id: projectId, workspaceId },
     select: { id: true },
@@ -196,6 +201,12 @@ const addProjectMember = async ({ projectId, workspaceId, userId, role }) => {
     select: { id: true },
   });
   if (!workspaceMember) throw new Error("USER_NOT_WORKSPACE_MEMBER");
+
+  const existingMember = await prisma.projectMember.findUnique({
+    where: { projectId_userId: { projectId, userId } },
+    select: { id: true },
+  });
+  if (existingMember) throw new Error("PROJECT_MEMBER_ALREADY_EXISTS");
 
   try {
     const member = await prisma.projectMember.create({
@@ -224,7 +235,11 @@ const listProjectMembers = async (projectId, workspaceId) => {
   return members.map(formatProjectMember);
 };
 
-const removeProjectMember = async ({ projectId, workspaceId, memberId }) => {
+const removeProjectMember = async ({ projectId, workspaceId, memberId, actorRole }) => {
+  if (actorRole && actorRole !== "ADMIN") {
+    throw new Error("INSUFFICIENT_WORKSPACE_PERMISSIONS");
+  }
+
   const member = await prisma.projectMember.findFirst({
     where: { id: memberId, projectId: projectId, project: { workspaceId } },
     select: safeProjectMemberSelect,
@@ -233,6 +248,29 @@ const removeProjectMember = async ({ projectId, workspaceId, memberId }) => {
 
   await prisma.projectMember.delete({ where: { id: memberId } });
   return formatProjectMember(member);
+};
+
+const changeProjectMemberRole = async ({ projectId, workspaceId, memberId, role, actorRole }) => {
+  if (actorRole && actorRole !== "ADMIN" && actorRole !== "PROJECT_MANAGER") {
+    throw new Error("INSUFFICIENT_WORKSPACE_PERMISSIONS");
+  }
+  if (actorRole === "PROJECT_MANAGER" && role === "PROJECT_MANAGER") {
+    throw new Error("CANNOT_ASSIGN_PROJECT_MANAGER_ROLE");
+  }
+
+  const member = await prisma.projectMember.findFirst({
+    where: { id: memberId, projectId, project: { workspaceId } },
+    select: { id: true },
+  });
+  if (!member) throw new Error("PROJECT_MEMBER_NOT_FOUND");
+
+  const updatedMember = await prisma.projectMember.update({
+    where: { id: memberId },
+    data: { role },
+    select: safeProjectMemberSelect,
+  });
+
+  return formatProjectMember(updatedMember);
 };
 
 const deleteProject = async ({ projectId, workspaceId }) => {
@@ -253,6 +291,7 @@ module.exports = {
   replaceProjectTechnologies,
   addProjectMember,
   listProjectMembers,
+  changeProjectMemberRole,
   removeProjectMember,
   deleteProject,
 };

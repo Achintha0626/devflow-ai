@@ -5,7 +5,7 @@ const { startTaskRiskWorker, closeTaskRiskWorker } = require("./workers/task-ris
 const { closeTaskRiskQueue } = require("./queues/task-risk.queue");
 const { closeCacheClient } = require("./services/cache.service");
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
 
 initializeSocket(server);

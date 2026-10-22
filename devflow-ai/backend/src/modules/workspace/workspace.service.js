@@ -228,7 +228,7 @@ const removeWorkspaceMember = async ({ workspaceId, memberId }) => {
     const member = await prisma.$transaction(async (tx) => {
       const currentMember = await tx.workspaceMember.findFirst({
         where: { id: memberId, workspaceId },
-        select: { id: true, role: true },
+        select: { id: true, userId: true, role: true },
       });
 
       if (!currentMember) throw new Error("MEMBER_NOT_FOUND");
@@ -240,6 +240,13 @@ const removeWorkspaceMember = async ({ workspaceId, memberId }) => {
 
         if (adminCount <= 1) throw new Error("LAST_ADMIN");
       }
+
+      await tx.projectMember.deleteMany({
+        where: {
+          userId: currentMember.userId,
+          project: { workspaceId },
+        },
+      });
 
       return tx.workspaceMember.delete({
         where: { id: memberId },

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import {
   TasksIcon,
   CheckIcon,
@@ -8,6 +9,8 @@ import {
   PlusIcon,
   EditIcon,
   AlertCircleIcon,
+  CalendarIcon,
+  ChevronRightIcon,
 } from "../icons";
 
 function formatCount(value) {
@@ -30,11 +33,11 @@ function formatDate(value) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(date);
 }
 
-function ProgressTrack({ value, label }) {
+function ProgressTrack({ value, label, variant }) {
   const percentage = Math.min(100, Math.max(0, value || 0));
   return (
     <div
-      className="dashboard-progress"
+      className={`dashboard-progress${variant ? ` dashboard-progress--${variant}` : ""}`}
       role="progressbar"
       aria-label={label}
       aria-valuemin={0}
@@ -46,17 +49,20 @@ function ProgressTrack({ value, label }) {
   );
 }
 
-export function SummaryCards({ overview = {} }) {
+export function SummaryCards({ overview = {}, workspaceId, projectId }) {
   const completionRate = overview.totalTasks > 0
     ? ((overview.completedTasks || 0) / overview.totalTasks) * 100
     : 0;
+
+  const basePath = workspaceId && projectId ? `/app/workspaces/${workspaceId}/projects/${projectId}` : "";
 
   const metrics = [
     {
       label: "Total tasks",
       value: overview.totalTasks ?? 0,
-      detail: "In this project",
+      detail: "Across backlog and sprints",
       icon: TasksIcon,
+      to: basePath ? `${basePath}/tasks` : null,
     },
     {
       label: "Completed tasks",
@@ -64,18 +70,22 @@ export function SummaryCards({ overview = {} }) {
       detail: `${formatPercent(completionRate)} completed`,
       icon: CheckIcon,
       highlight: true,
+      rate: completionRate,
+      to: basePath ? `${basePath}/tasks` : null,
     },
     {
       label: "Requirements",
       value: overview.totalRequirements ?? 0,
-      detail: "Documented scopes",
+      detail: "Documented specifications",
       icon: RequirementsIcon,
+      to: basePath ? `${basePath}/requirements` : null,
     },
     {
       label: "Project members",
       value: overview.totalMembers ?? 0,
-      detail: "Active contributors",
+      detail: "Assigned contributors",
       icon: UserIcon,
+      to: basePath ? `${basePath}/members` : null,
     },
   ];
 
@@ -83,16 +93,49 @@ export function SummaryCards({ overview = {} }) {
     <section className="dashboard-summary-grid" aria-label="Project summary">
       {metrics.map((metric) => {
         const Icon = metric.icon;
-        return (
-          <article className="dashboard-metric" key={metric.label}>
+        const CardContent = (
+          <>
             <div className="dashboard-metric__top">
               <h2>{metric.label}</h2>
               <span className="dashboard-metric__icon" aria-hidden="true">
-                <Icon size={16} />
+                <Icon size={15} />
               </span>
             </div>
-            <p className="dashboard-metric__value">{formatCount(metric.value)}</p>
-            <p className="dashboard-metric__detail">{metric.detail}</p>
+            <div className="dashboard-metric__body">
+              <p className="dashboard-metric__value">{formatCount(metric.value)}</p>
+              {metric.highlight && metric.value > 0 && (
+                <div className="dashboard-metric__progress-wrap">
+                  <ProgressTrack value={metric.rate} label="Completion progress" variant="success" />
+                </div>
+              )}
+            </div>
+            <div className="dashboard-metric__footer">
+              <span className="dashboard-metric__detail">{metric.detail}</span>
+              {metric.to && (
+                <ChevronRightIcon size={12} className="dashboard-metric__arrow" aria-hidden="true" />
+              )}
+            </div>
+          </>
+        );
+
+        if (metric.to) {
+          return (
+            <Link
+              to={metric.to}
+              className={`dashboard-metric dashboard-metric--link${metric.highlight ? " dashboard-metric--highlight" : ""}`}
+              key={metric.label}
+            >
+              {CardContent}
+            </Link>
+          );
+        }
+
+        return (
+          <article
+            className={`dashboard-metric${metric.highlight ? " dashboard-metric--highlight" : ""}`}
+            key={metric.label}
+          >
+            {CardContent}
           </article>
         );
       })}
@@ -100,7 +143,16 @@ export function SummaryCards({ overview = {} }) {
   );
 }
 
-export function DistributionSection({ title, description, distribution, total, emptyMessage }) {
+export function DistributionSection({
+  title,
+  description,
+  distribution,
+  total,
+  type = "default",
+  actionLink,
+  actionLabel,
+  emptyMessage,
+}) {
   const entries = Object.entries(distribution || {});
   const safeTotal = Number.isFinite(total) ? total : 0;
   const isEmpty = safeTotal === 0 || entries.length === 0;
@@ -115,21 +167,54 @@ export function DistributionSection({ title, description, distribution, total, e
         <span className="dashboard-panel__total">{formatCount(safeTotal)} total</span>
       </header>
       {isEmpty ? (
-        <p className="dashboard-empty-note dashboard-empty-note--panel">{emptyMessage}</p>
+        <div className="dashboard-empty-state">
+          <p className="dashboard-empty-state__message">{emptyMessage}</p>
+          {actionLink && actionLabel && (
+            <Link to={actionLink} className="dashboard-empty-state__action">
+              <PlusIcon size={13} />
+              <span>{actionLabel}</span>
+            </Link>
+          )}
+        </div>
       ) : (
         <ul className="dashboard-distribution">
           {entries.map(([name, count]) => {
             const share = safeTotal > 0 ? (count / safeTotal) * 100 : 0;
+            const slug = name.toLowerCase();
             return (
               <li className="dashboard-distribution__row" key={name}>
                 <div className="dashboard-distribution__labels">
-                  <span className="dashboard-distribution__name">{formatLabel(name)}</span>
+                  <span className="dashboard-distribution__name-wrap">
+                    {type === "status" && (
+                      <span
+                        className={`dashboard-dot dashboard-dot--status-${slug}`}
+                        aria-hidden="true"
+                      />
+                    )}
+                    {type === "priority" && (
+                      <span
+                        className={`dashboard-dot dashboard-dot--priority-${slug}`}
+                        aria-hidden="true"
+                      />
+                    )}
+                    {type === "requirement" && (
+                      <span
+                        className={`dashboard-dot dashboard-dot--requirement-${slug}`}
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span className="dashboard-distribution__name">{formatLabel(name)}</span>
+                  </span>
                   <span className="dashboard-distribution__value">
                     {formatCount(count)}
                     <span className="dashboard-distribution__share">({formatPercent(share)})</span>
                   </span>
                 </div>
-                <ProgressTrack value={share} label={`${formatLabel(name)} share`} />
+                <ProgressTrack
+                  value={share}
+                  label={`${formatLabel(name)} share`}
+                  variant={type === "status" || type === "priority" ? slug : undefined}
+                />
               </li>
             );
           })}
@@ -148,10 +233,14 @@ function SprintMetric({ label, value }) {
   );
 }
 
-export function ActiveSprintSection({ sprint }) {
+export function ActiveSprintSection({ sprint, workspaceId, projectId }) {
   const pointsPct = sprint?.totalStoryPoints > 0
     ? ((sprint.completedStoryPoints || 0) / sprint.totalStoryPoints) * 100
     : 0;
+
+  const sprintsPath = workspaceId && projectId
+    ? `/app/workspaces/${workspaceId}/projects/${projectId}/sprints`
+    : null;
 
   return (
     <section className="dashboard-panel dashboard-panel--sprint" aria-label="Active sprint">
@@ -160,26 +249,46 @@ export function ActiveSprintSection({ sprint }) {
           <h2>Active sprint</h2>
           <p>Progress for the current sprint</p>
         </div>
-        <span className="dashboard-panel__icon" aria-hidden="true">
-          <SprintsIcon size={16} />
-        </span>
+        <div className="dashboard-panel__actions">
+          {sprintsPath && (
+            <Link to={sprintsPath} className="dashboard-panel__action-link">
+              Manage sprints
+            </Link>
+          )}
+          <span className="dashboard-panel__icon" aria-hidden="true">
+            <SprintsIcon size={15} />
+          </span>
+        </div>
       </header>
       {!sprint ? (
-        <p className="dashboard-empty-note dashboard-empty-note--panel">No active sprint</p>
+        <div className="dashboard-empty-state">
+          <p className="dashboard-empty-state__message">
+            No active sprint is currently running for this project.
+          </p>
+          {sprintsPath && (
+            <Link to={sprintsPath} className="dashboard-empty-state__action">
+              <PlusIcon size={13} />
+              <span>Plan a sprint</span>
+            </Link>
+          )}
+        </div>
       ) : (
         <div className="dashboard-sprint">
           <div className="dashboard-sprint__heading">
-            <div>
+            <div className="dashboard-sprint__title-group">
               <h3>{sprint.name}</h3>
-              {sprint.goal && <p>{sprint.goal}</p>}
+              {sprint.goal && <p className="dashboard-sprint__goal">{sprint.goal}</p>}
             </div>
             <span className="dashboard-badge">{formatLabel(sprint.status)}</span>
           </div>
           {(sprint.startDate || sprint.endDate) && (
             <p className="dashboard-sprint__dates">
-              {formatDate(sprint.startDate) || "Start date not set"}
-              <span aria-hidden="true"> → </span>
-              {formatDate(sprint.endDate) || "End date not set"}
+              <CalendarIcon size={12} aria-hidden="true" />
+              <span>
+                {formatDate(sprint.startDate) || "Start date not set"}
+                <span aria-hidden="true"> → </span>
+                {formatDate(sprint.endDate) || "End date not set"}
+              </span>
             </p>
           )}
 
@@ -190,7 +299,11 @@ export function ActiveSprintSection({ sprint }) {
                 {formatCount(sprint.completedTasks)} / {formatCount(sprint.totalTasks)} ({formatPercent(sprint.completionPercentage)})
               </span>
             </div>
-            <ProgressTrack value={sprint.completionPercentage} label="Active sprint task completion" />
+            <ProgressTrack
+              value={sprint.completionPercentage}
+              label="Active sprint task completion"
+              variant="in_progress"
+            />
           </div>
 
           <div className="dashboard-sprint__progress-group">
@@ -200,7 +313,11 @@ export function ActiveSprintSection({ sprint }) {
                 {formatCount(sprint.completedStoryPoints)} / {formatCount(sprint.totalStoryPoints)} ({formatPercent(pointsPct)})
               </span>
             </div>
-            <ProgressTrack value={pointsPct} label="Active sprint story points completion" />
+            <ProgressTrack
+              value={pointsPct}
+              label="Active sprint story points completion"
+              variant="accent"
+            />
           </div>
 
           <dl className="dashboard-sprint__metrics">
@@ -220,7 +337,11 @@ function getMemberName(user) {
   return name || user?.email || "Unnamed member";
 }
 
-export function TeamWorkloadSection({ members = [] }) {
+export function TeamWorkloadSection({ members = [], workspaceId, projectId }) {
+  const membersPath = workspaceId && projectId
+    ? `/app/workspaces/${workspaceId}/projects/${projectId}/members`
+    : null;
+
   return (
     <section className="dashboard-panel dashboard-panel--workload" aria-label="Team workload">
       <header className="dashboard-panel__header">
@@ -228,17 +349,34 @@ export function TeamWorkloadSection({ members = [] }) {
           <h2>Team workload</h2>
           <p>Assigned task counts and story points by member</p>
         </div>
-        <span className="dashboard-panel__total">{formatCount(members.length)} members</span>
+        <div className="dashboard-panel__actions">
+          {membersPath && (
+            <Link to={membersPath} className="dashboard-panel__action-link">
+              Manage members
+            </Link>
+          )}
+          <span className="dashboard-panel__total">{formatCount(members.length)} members</span>
+        </div>
       </header>
       {members.length === 0 ? (
-        <p className="dashboard-empty-note dashboard-empty-note--panel">No project members to show.</p>
+        <div className="dashboard-empty-state">
+          <p className="dashboard-empty-state__message">
+            No team members assigned to this project yet.
+          </p>
+          {membersPath && (
+            <Link to={membersPath} className="dashboard-empty-state__action">
+              <UserIcon size={13} />
+              <span>Assign members</span>
+            </Link>
+          )}
+        </div>
       ) : (
         <ul className="dashboard-workload-list">
           {members.map((member) => {
             const memberName = getMemberName(member.user);
             const initial = memberName.charAt(0).toUpperCase();
             return (
-              <li className="dashboard-workload" key={member.user?.id || member.id}>
+              <li className="dashboard-workload" key={member.user?.id || member.id || memberName}>
                 <div className="dashboard-workload__heading">
                   <div className="dashboard-workload__identity">
                     <span className="dashboard-workload__avatar" aria-hidden="true">{initial}</span>
@@ -373,7 +511,9 @@ export function RecentActivitySection({ activities = [] }) {
         </span>
       </header>
       {activities.length === 0 ? (
-        <p className="dashboard-empty-note dashboard-empty-note--panel">No recent activity.</p>
+        <div className="dashboard-empty-state">
+          <p className="dashboard-empty-state__message">No recent activity recorded yet.</p>
+        </div>
       ) : (
         <div className={`dashboard-activity-container${showAll ? " is-scrollable" : ""}`}>
           <ol className="dashboard-activity-list">

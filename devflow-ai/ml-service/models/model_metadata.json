@@ -1,0 +1,35 @@
+{
+  "model_type": "LogisticRegression pipeline",
+  "model_version": "dev-synthetic-v1",
+  "synthetic_development_model": true,
+  "training_timestamp_utc": "2026-09-24T17:58:23.874678+00:00",
+  "training_row_count": 5000,
+  "feature_names": [
+    "storyPoints",
+    "taskAgeDays",
+    "daysUntilDue",
+    "assigneeActiveTasks",
+    "assigneeStoryPointLoad",
+    "sprintDaysRemaining",
+    "sprintCompletionPercentage",
+    "statusChangeCount",
+    "priority",
+    "taskType"
+  ],
+  "target_name": "isDelayed",
+  "test_size": 0.2,
+  "random_state": 20240924,
+  "evaluation_metrics": {
+    "accuracy": 0.754,
+    "precision": 0.6519337016574586,
+    "recall": 0.3920265780730897,
+    "f1": 0.4896265560165975,
+    "roc_auc": 0.7724181198579841,
+    "confusion_matrix": {
+      "true_negative": 636,
+      "false_positive": 63,
+      "false_negative": 183,
+      "true_positive": 118
+    }
+  }
+}

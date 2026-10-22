@@ -24,11 +24,11 @@ function getInitialValues(task) {
   };
 }
 
-function createPayload(values) {
-  const storyPoints = values.storyPoints === "" ? null : Number(values.storyPoints);
+function createPayload(values = {}) {
+  const storyPoints = values.storyPoints === "" || values.storyPoints == null ? null : Number(values.storyPoints);
   return {
-    title: values.title.trim(),
-    description: values.description.trim(),
+    title: typeof values.title === "string" ? values.title.trim() : "",
+    description: typeof values.description === "string" ? values.description.trim() : "",
     type: values.type,
     priority: values.priority,
     storyPoints,
@@ -74,8 +74,8 @@ export function TaskForm({
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
-    const title = values.title.trim();
-    const description = values.description.trim();
+    const title = typeof values.title === "string" ? values.title.trim() : "";
+    const description = typeof values.description === "string" ? values.description.trim() : "";
     if (title.length < 2 || title.length > 200) {
       setValidationError("Title must be 2 to 200 characters after trimming.");
       return;

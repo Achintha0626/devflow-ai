@@ -6,6 +6,7 @@ const {
   replaceProjectTechnologies,
   addProjectMember,
   listProjectMembers,
+  changeProjectMemberRole,
   removeProjectMember,
   deleteProject,
 } = require("./project.service");
@@ -91,15 +92,29 @@ const replaceTechnologies = async (req, res) => {
 };
 
 const addMember = async (req, res) => {
+  if (req.workspaceMember?.role !== "ADMIN" && req.workspaceMember?.role !== "PROJECT_MANAGER") {
+    return res.status(403).json({ success: false, message: "Insufficient workspace permissions" });
+  }
+  if (req.workspaceMember?.role === "PROJECT_MANAGER" && req.body.role === "PROJECT_MANAGER") {
+    return res.status(403).json({ success: false, message: "Project managers cannot assign the Project Manager role" });
+  }
+
   try {
     const member = await addProjectMember({
       projectId: req.params.projectId,
       workspaceId: req.params.workspaceId,
+      actorRole: req.workspaceMember?.role,
       ...req.body,
     });
     await invalidateProjectDashboard(req.params.projectId);
     return res.status(201).json({ success: true, message: "Project member added successfully", data: member });
   } catch (error) {
+    if (error.message === "INSUFFICIENT_WORKSPACE_PERMISSIONS") {
+      return res.status(403).json({ success: false, message: "Insufficient workspace permissions" });
+    }
+    if (error.message === "CANNOT_ASSIGN_PROJECT_MANAGER_ROLE") {
+      return res.status(403).json({ success: false, message: "Project managers cannot assign the Project Manager role" });
+    }
     if (error.message === "PROJECT_NOT_FOUND") {
       return res.status(404).json({ success: false, message: "Project not found" });
     }
@@ -128,16 +143,56 @@ const listMembers = async (req, res) => {
   }
 };
 
+const changeMemberRole = async (req, res) => {
+  if (req.workspaceMember?.role !== "ADMIN" && req.workspaceMember?.role !== "PROJECT_MANAGER") {
+    return res.status(403).json({ success: false, message: "Insufficient workspace permissions" });
+  }
+  if (req.workspaceMember?.role === "PROJECT_MANAGER" && req.body.role === "PROJECT_MANAGER") {
+    return res.status(403).json({ success: false, message: "Project managers cannot assign the Project Manager role" });
+  }
+
+  try {
+    const member = await changeProjectMemberRole({
+      projectId: req.params.projectId,
+      workspaceId: req.params.workspaceId,
+      memberId: req.params.memberId,
+      actorRole: req.workspaceMember?.role,
+      role: req.body.role,
+    });
+    await invalidateProjectDashboard(req.params.projectId);
+    return res.status(200).json({ success: true, message: "Project member role updated successfully", data: member });
+  } catch (error) {
+    if (error.message === "INSUFFICIENT_WORKSPACE_PERMISSIONS") {
+      return res.status(403).json({ success: false, message: "Insufficient workspace permissions" });
+    }
+    if (error.message === "CANNOT_ASSIGN_PROJECT_MANAGER_ROLE") {
+      return res.status(403).json({ success: false, message: "Project managers cannot assign the Project Manager role" });
+    }
+    if (error.message === "PROJECT_MEMBER_NOT_FOUND") {
+      return res.status(404).json({ success: false, message: "Project member not found" });
+    }
+    return internalError(res, error);
+  }
+};
+
 const removeMember = async (req, res) => {
+  if (req.workspaceMember?.role !== "ADMIN") {
+    return res.status(403).json({ success: false, message: "Only workspace administrators can remove project members" });
+  }
+
   try {
     const member = await removeProjectMember({
       projectId: req.params.projectId,
       workspaceId: req.params.workspaceId,
       memberId: req.params.memberId,
+      actorRole: req.workspaceMember?.role,
     });
     await invalidateProjectDashboard(req.params.projectId);
     return res.status(200).json({ success: true, message: "Project member removed successfully", data: member });
   } catch (error) {
+    if (error.message === "INSUFFICIENT_WORKSPACE_PERMISSIONS") {
+      return res.status(403).json({ success: false, message: "Only workspace administrators can remove project members" });
+    }
     if (error.message === "PROJECT_MEMBER_NOT_FOUND") {
       return res.status(404).json({ success: false, message: "Project member not found" });
     }
@@ -166,6 +221,7 @@ module.exports = {
   replaceTechnologies,
   addMember,
   listMembers,
+  changeMemberRole,
   removeMember,
   remove,
 };

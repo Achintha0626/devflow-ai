@@ -9,10 +9,13 @@ import { TaskDetailsPanel } from "../../components/tasks/TaskDetailsPanel";
 import { TaskFilters } from "../../components/tasks/TaskFilters";
 import { TaskForm } from "../../components/tasks/TaskForm";
 import {
+  EMPTY_FILTERS,
   formatTaskDate,
   formatTaskLabel,
+  getApiFilters,
   getTaskDisplayName,
   getTaskErrorMessage,
+  hasActiveFilters,
 } from "../../components/tasks/taskUtils";
 import {
   PlusIcon,
@@ -22,28 +25,6 @@ import {
   UserIcon,
 } from "../../components/icons";
 import "./TaskManagement.css";
-
-const EMPTY_FILTERS = {
-  search: "",
-  status: "",
-  priority: "",
-  type: "",
-  assigneeId: "",
-  requirementId: "",
-};
-
-function getApiFilters(filters) {
-  const result = {};
-  if (filters.search.trim()) result.search = filters.search.trim().slice(0, 100);
-  ["status", "priority", "type", "assigneeId", "requirementId"].forEach((key) => {
-    if (filters[key]) result[key] = filters[key];
-  });
-  return result;
-}
-
-function hasActiveFilters(filters) {
-  return Object.values(filters).some(Boolean);
-}
 
 function TaskRow({ task, selected, onSelect }) {
   const statusSlug = (task.status || "").toLowerCase();

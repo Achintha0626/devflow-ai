@@ -131,8 +131,8 @@ export function WorkspaceMembersPage() {
   }, [workspaceId, reloadKey]);
 
   const isAdmin = useMemo(() => {
-    return membership?.role === "ADMIN";
-  }, [membership?.role]);
+    return membership?.role === "ADMIN" || Boolean(workspace?.createdById && user?.id && workspace.createdById === user.id);
+  }, [membership?.role, workspace?.createdById, user?.id]);
 
   const handleOpenAddModal = useCallback(() => {
     setAddEmail("");

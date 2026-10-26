@@ -114,18 +114,54 @@ const listUserWorkspaces = async (userId) => {
 };
 
 const getUserWorkspace = async ({ workspaceId, userId }) => {
-  const membership = await prisma.workspaceMember.findUnique({
+  let membership = await prisma.workspaceMember.findUnique({
     where: {
       workspaceId_userId: { workspaceId, userId },
     },
     select: {
+      id: true,
       role: true,
       joinedAt: true,
       workspace: { select: safeWorkspaceSelect },
     },
   });
 
-  if (!membership) return null;
+  if (!membership) {
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: safeWorkspaceSelect,
+    });
+    if (!workspace || workspace.createdById !== userId) return null;
+
+    membership = await prisma.workspaceMember.upsert({
+      where: {
+        workspaceId_userId: { workspaceId, userId },
+      },
+      update: { role: "ADMIN" },
+      create: {
+        workspaceId,
+        userId,
+        role: "ADMIN",
+      },
+      select: {
+        id: true,
+        role: true,
+        joinedAt: true,
+        workspace: { select: safeWorkspaceSelect },
+      },
+    });
+  } else if (membership.workspace?.createdById === userId && membership.role !== "ADMIN") {
+    membership = await prisma.workspaceMember.update({
+      where: { id: membership.id },
+      data: { role: "ADMIN" },
+      select: {
+        id: true,
+        role: true,
+        joinedAt: true,
+        workspace: { select: safeWorkspaceSelect },
+      },
+    });
+  }
 
   return {
     workspace: membership.workspace,
@@ -189,7 +225,7 @@ const changeWorkspaceMemberRole = async ({ workspaceId, memberId, role }) => {
     const member = await prisma.$transaction(async (tx) => {
       const currentMember = await tx.workspaceMember.findFirst({
         where: { id: memberId, workspaceId },
-        select: { id: true, role: true },
+        select: { id: true, userId: true, role: true },
       });
 
       if (!currentMember) throw new Error("MEMBER_NOT_FOUND");
@@ -199,6 +235,15 @@ const changeWorkspaceMemberRole = async ({ workspaceId, memberId, role }) => {
           where: { id: memberId, workspaceId },
           select: safeMemberSelect,
         });
+      }
+
+      const workspace = await tx.workspace.findUnique({
+        where: { id: workspaceId },
+        select: { createdById: true },
+      });
+
+      if (workspace && workspace.createdById === currentMember.userId && role !== "ADMIN") {
+        throw new Error("CANNOT_DEMOTE_WORKSPACE_CREATOR");
       }
 
       if (currentMember.role === "ADMIN" && role !== "ADMIN") {
@@ -232,6 +277,15 @@ const removeWorkspaceMember = async ({ workspaceId, memberId }) => {
       });
 
       if (!currentMember) throw new Error("MEMBER_NOT_FOUND");
+
+      const workspace = await tx.workspace.findUnique({
+        where: { id: workspaceId },
+        select: { createdById: true },
+      });
+
+      if (workspace && workspace.createdById === currentMember.userId) {
+        throw new Error("CANNOT_REMOVE_WORKSPACE_CREATOR");
+      }
 
       if (currentMember.role === "ADMIN") {
         const adminCount = await tx.workspaceMember.count({

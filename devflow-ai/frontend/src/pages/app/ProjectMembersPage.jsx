@@ -122,7 +122,9 @@ export function ProjectMembersPage() {
     };
   }, [workspaceId, projectId, reloadKey]);
 
-  const isWorkspaceAdmin = membership?.role === "ADMIN";
+  const isWorkspaceAdmin =
+    membership?.role === "ADMIN" ||
+    Boolean(workspace?.createdById && user?.id && workspace.createdById === user.id);
   const isWorkspaceProjectManager = membership?.role === "PROJECT_MANAGER";
   const canAddMembers = isWorkspaceAdmin || isWorkspaceProjectManager;
   const canChangeRole = isWorkspaceAdmin || isWorkspaceProjectManager;
@@ -132,6 +134,14 @@ export function ProjectMembersPage() {
     const projectUserIds = new Set(projectMembers.map((m) => m.userId));
     return workspaceMembers.filter((wm) => !projectUserIds.has(wm.userId));
   }, [projectMembers, workspaceMembers]);
+
+  const workspaceMemberMap = useMemo(() => {
+    const map = new Map();
+    for (const wm of workspaceMembers) {
+      map.set(wm.userId, wm);
+    }
+    return map;
+  }, [workspaceMembers]);
 
   const handleOpenAddModal = useCallback(() => {
     if (!canAddMembers) return;
@@ -507,6 +517,10 @@ export function ProjectMembersPage() {
                 const initial = memberName.charAt(0).toUpperCase() || "U";
                 const isCurrentUser = member.userId === user?.id;
                 const badge = getMemberRoleBadge(member.role);
+                const wsMember = workspaceMemberMap.get(member.userId);
+                const wsRole = member.workspaceRole || wsMember?.role;
+                const isWorkspaceCreator = workspace?.createdById === member.userId;
+                const isWorkspaceAdmin = wsRole === "ADMIN" || isWorkspaceCreator;
 
                 return (
                   <tr key={member.membershipId}>
@@ -525,6 +539,14 @@ export function ProjectMembersPage() {
                             {isCurrentUser && (
                               <span className="project-members__you-badge">You</span>
                             )}
+                            {isWorkspaceAdmin && (
+                              <span
+                                className="project-members__ws-admin-pill"
+                                title="Workspace Administrator"
+                              >
+                                Workspace Admin
+                              </span>
+                            )}
                           </div>
                           <span className="project-members__user-email">{member.email}</span>
                         </div>
@@ -534,7 +556,18 @@ export function ProjectMembersPage() {
                       <span>{member.email}</span>
                     </td>
                     <td data-label="Role">
-                      <span className={badge.className}>{badge.label}</span>
+                      <div className="project-members__role-cell">
+                        {isWorkspaceAdmin ? (
+                          <span
+                            className="project-members__ws-role-indicator"
+                            title="Workspace Administrator with administrative access across all projects"
+                          >
+                            Workspace Administrator
+                          </span>
+                        ) : (
+                          <span className={badge.className}>{badge.label}</span>
+                        )}
+                      </div>
                     </td>
                     <td data-label="Joined">
                       <span>{formatMemberDate(member.joinedAt)}</span>
@@ -649,9 +682,15 @@ export function ProjectMembersPage() {
                     <option value="" disabled>Select a workspace member</option>
                     {availableWorkspaceMembers.map((wm) => {
                       const name = formatMemberName(wm);
+                      const wsRoleLabel = {
+                        ADMIN: "Administrator",
+                        PROJECT_MANAGER: "Project Manager",
+                        DEVELOPER: "Developer",
+                        QA: "QA Engineer",
+                      }[wm.role] || wm.role;
                       return (
                         <option key={wm.userId} value={wm.userId}>
-                          {name} — {wm.email} ({wm.role})
+                          {name} — {wm.email} ({wsRoleLabel})
                         </option>
                       );
                     })}
@@ -807,9 +846,18 @@ export function ProjectMembersPage() {
                 )}
               </div>
               <div className="project-members__user-info">
-                <span className="project-members__user-name">
-                  {formatMemberName(roleModalMember)}
-                </span>
+                <div className="project-members__user-name-row">
+                  <span className="project-members__user-name">
+                    {formatMemberName(roleModalMember)}
+                  </span>
+                  {(roleModalMember.workspaceRole === "ADMIN" ||
+                    workspaceMemberMap.get(roleModalMember.userId)?.role === "ADMIN" ||
+                    workspace?.createdById === roleModalMember.userId) && (
+                    <span className="project-members__ws-admin-pill" title="Workspace Administrator">
+                      Workspace Admin
+                    </span>
+                  )}
+                </div>
                 <span className="project-members__user-email">{roleModalMember.email}</span>
               </div>
             </div>
@@ -967,9 +1015,18 @@ export function ProjectMembersPage() {
                 )}
               </div>
               <div className="project-members__user-info">
-                <span className="project-members__user-name">
-                  {formatMemberName(removeModalMember)}
-                </span>
+                <div className="project-members__user-name-row">
+                  <span className="project-members__user-name">
+                    {formatMemberName(removeModalMember)}
+                  </span>
+                  {(removeModalMember.workspaceRole === "ADMIN" ||
+                    workspaceMemberMap.get(removeModalMember.userId)?.role === "ADMIN" ||
+                    workspace?.createdById === removeModalMember.userId) && (
+                    <span className="project-members__ws-admin-pill" title="Workspace Administrator">
+                      Workspace Admin
+                    </span>
+                  )}
+                </div>
                 <span className="project-members__user-email">{removeModalMember.email}</span>
               </div>
             </div>

@@ -39,14 +39,19 @@ const safeProjectMemberSelect = {
 
 const isUniqueConstraintError = (error) => error && error.code === "P2002";
 
-const formatProjectMember = (member) => ({
+const formatProjectMember = (member, workspaceRole = null) => ({
   membershipId: member.id,
   userId: member.userId,
-  firstName: member.user.firstName,
-  lastName: member.user.lastName,
-  email: member.user.email,
-  avatarUrl: member.user.avatarUrl,
+  firstName: member.user?.firstName || member.firstName,
+  lastName: member.user?.lastName || member.lastName,
+  email: member.user?.email || member.email,
+  avatarUrl: member.user?.avatarUrl !== undefined ? member.user?.avatarUrl : member.avatarUrl,
   role: member.role,
+  workspaceRole:
+    workspaceRole ||
+    member.workspaceRole ||
+    member.user?.workspaceMemberships?.[0]?.role ||
+    null,
   joinedAt: member.joinedAt,
 });
 
@@ -198,7 +203,7 @@ const addProjectMember = async ({ projectId, workspaceId, userId, role, actorRol
 
   const workspaceMember = await prisma.workspaceMember.findUnique({
     where: { workspaceId_userId: { workspaceId, userId } },
-    select: { id: true },
+    select: { id: true, role: true },
   });
   if (!workspaceMember) throw new Error("USER_NOT_WORKSPACE_MEMBER");
 
@@ -213,7 +218,7 @@ const addProjectMember = async ({ projectId, workspaceId, userId, role, actorRol
       data: { projectId, userId, role },
       select: safeProjectMemberSelect,
     });
-    return formatProjectMember(member);
+    return formatProjectMember(member, workspaceMember.role);
   } catch (error) {
     if (isUniqueConstraintError(error)) throw new Error("PROJECT_MEMBER_ALREADY_EXISTS");
     throw error;
@@ -230,9 +235,24 @@ const listProjectMembers = async (projectId, workspaceId) => {
   const members = await prisma.projectMember.findMany({
     where: { projectId },
     orderBy: { joinedAt: "asc" },
-    select: safeProjectMemberSelect,
+    select: {
+      ...safeProjectMemberSelect,
+      user: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          avatarUrl: true,
+          workspaceMemberships: {
+            where: { workspaceId },
+            select: { role: true },
+          },
+        },
+      },
+    },
   });
-  return members.map(formatProjectMember);
+  return members.map((m) => formatProjectMember(m));
 };
 
 const removeProjectMember = async ({ projectId, workspaceId, memberId, actorRole }) => {
@@ -260,9 +280,14 @@ const changeProjectMemberRole = async ({ projectId, workspaceId, memberId, role,
 
   const member = await prisma.projectMember.findFirst({
     where: { id: memberId, projectId, project: { workspaceId } },
-    select: { id: true },
+    select: { id: true, userId: true },
   });
   if (!member) throw new Error("PROJECT_MEMBER_NOT_FOUND");
+
+  const workspaceMember = await prisma.workspaceMember.findUnique({
+    where: { workspaceId_userId: { workspaceId, userId: member.userId } },
+    select: { role: true },
+  });
 
   const updatedMember = await prisma.projectMember.update({
     where: { id: memberId },
@@ -270,7 +295,7 @@ const changeProjectMemberRole = async ({ projectId, workspaceId, memberId, role,
     select: safeProjectMemberSelect,
   });
 
-  return formatProjectMember(updatedMember);
+  return formatProjectMember(updatedMember, workspaceMember?.role);
 };
 
 const deleteProject = async ({ projectId, workspaceId }) => {

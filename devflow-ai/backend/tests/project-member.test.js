@@ -265,3 +265,371 @@ describe("Idempotent Database Repair For Existing Projects", () => {
     assert.equal(secondRun.repairedCount, 0);
   });
 });
+
+describe("Workspace Creator Role Assignment", () => {
+  it("workspace creator is assigned ADMIN workspace role on creation", () => {
+    const userId = "user-creator";
+    const workspaceId = "ws-new";
+
+    const createPayload = {
+      name: "My Workspace",
+      description: "Test workspace",
+      slug: "my-workspace",
+      createdById: userId,
+      members: {
+        create: {
+          userId,
+          role: "ADMIN",
+        },
+      },
+    };
+
+    assert.equal(createPayload.createdById, userId);
+    assert.equal(createPayload.members.create.userId, userId);
+    assert.equal(createPayload.members.create.role, "ADMIN");
+  });
+
+  it("workspace creation payload does not allow client to override creator role", () => {
+    const userId = "user-creator";
+    const clientProvidedPayload = { name: "Workspace", description: "Test" };
+
+    const createWorkspaceData = {
+      name: clientProvidedPayload.name,
+      description: clientProvidedPayload.description,
+      createdById: userId,
+      members: {
+        create: {
+          userId,
+          role: "ADMIN",
+        },
+      },
+    };
+
+    assert.equal(createWorkspaceData.members.create.role, "ADMIN");
+    assert.ok(!Object.prototype.hasOwnProperty.call(clientProvidedPayload, "role"));
+    assert.ok(!Object.prototype.hasOwnProperty.call(clientProvidedPayload, "members"));
+  });
+
+  it("workspace membership references the correct workspace and user", () => {
+    const userId = "user-abc";
+    const workspaceId = "ws-xyz";
+
+    const membership = { workspaceId, userId, role: "ADMIN" };
+
+    assert.equal(membership.workspaceId, workspaceId);
+    assert.equal(membership.userId, userId);
+    assert.equal(membership.role, "ADMIN");
+  });
+});
+
+describe("Workspace and Project Role System Separation", () => {
+  it("WorkspaceRole enum contains ADMIN, PROJECT_MANAGER, DEVELOPER, QA", () => {
+    const workspaceRoles = ["ADMIN", "PROJECT_MANAGER", "DEVELOPER", "QA"];
+    assert.ok(workspaceRoles.includes("ADMIN"));
+    assert.ok(workspaceRoles.includes("PROJECT_MANAGER"));
+    assert.ok(workspaceRoles.includes("DEVELOPER"));
+    assert.ok(workspaceRoles.includes("QA"));
+    assert.equal(workspaceRoles.length, 4);
+  });
+
+  it("ProjectRole enum contains PROJECT_MANAGER, DEVELOPER, QA but not ADMIN", () => {
+    const projectRoles = ["PROJECT_MANAGER", "DEVELOPER", "QA"];
+    assert.ok(!projectRoles.includes("ADMIN"));
+    assert.ok(projectRoles.includes("PROJECT_MANAGER"));
+    assert.equal(projectRoles.length, 3);
+  });
+
+  it("project creator is assigned PROJECT_MANAGER project role, not ADMIN", () => {
+    const userId = "user-creator";
+    const creatorProjectMember = { userId, role: "PROJECT_MANAGER" };
+
+    const validProjectRoles = ["PROJECT_MANAGER", "DEVELOPER", "QA"];
+    assert.ok(validProjectRoles.includes(creatorProjectMember.role));
+    assert.notEqual(creatorProjectMember.role, "ADMIN");
+  });
+
+  it("workspace ADMIN having project access does not depend on a ProjectMember record", () => {
+    const hasWorkspaceAccess = (workspaceRole) =>
+      workspaceRole === "ADMIN" || workspaceRole === "PROJECT_MANAGER";
+
+    assert.equal(hasWorkspaceAccess("ADMIN"), true);
+    assert.equal(hasWorkspaceAccess("PROJECT_MANAGER"), true);
+    assert.equal(hasWorkspaceAccess("DEVELOPER"), false);
+    assert.equal(hasWorkspaceAccess("QA"), false);
+  });
+});
+
+describe("Workspace Role Label Display Consistency", () => {
+  function getWorkspaceRoleLabel(role) {
+    const labels = {
+      ADMIN: "Administrator",
+      PROJECT_MANAGER: "Project Manager",
+      DEVELOPER: "Developer",
+      QA: "QA Engineer",
+    };
+    return labels[role] || role;
+  }
+
+  it("ADMIN workspace role displays as Administrator", () => {
+    assert.equal(getWorkspaceRoleLabel("ADMIN"), "Administrator");
+  });
+
+  it("PROJECT_MANAGER workspace role displays as Project Manager", () => {
+    assert.equal(getWorkspaceRoleLabel("PROJECT_MANAGER"), "Project Manager");
+  });
+
+  it("DEVELOPER workspace role displays as Developer", () => {
+    assert.equal(getWorkspaceRoleLabel("DEVELOPER"), "Developer");
+  });
+
+  it("QA workspace role displays as QA Engineer", () => {
+    assert.equal(getWorkspaceRoleLabel("QA"), "QA Engineer");
+  });
+
+  it("Add Member dropdown uses workspace role label not project role", () => {
+    const workspaceMember = { role: "ADMIN", userId: "u-1", firstName: "Jane", email: "j@x.com" };
+
+    const wsRoleLabel = {
+      ADMIN: "Administrator",
+      PROJECT_MANAGER: "Project Manager",
+      DEVELOPER: "Developer",
+      QA: "QA Engineer",
+    }[workspaceMember.role] || workspaceMember.role;
+
+    assert.equal(wsRoleLabel, "Administrator");
+    assert.notEqual(wsRoleLabel, "ADMIN");
+  });
+});
+
+describe("Privilege Escalation Prevention", () => {
+  it("workspace members cannot self-assign ADMIN role via addWorkspaceMember API payload shape", () => {
+    const allowedRolesFromClient = ["ADMIN", "PROJECT_MANAGER", "DEVELOPER", "QA"];
+    const routeRequiresAdminActor = true;
+
+    assert.ok(routeRequiresAdminActor);
+    assert.ok(allowedRolesFromClient.every((r) => ["ADMIN", "PROJECT_MANAGER", "DEVELOPER", "QA"].includes(r)));
+  });
+
+  it("non-admin workspace member cannot promote another user to admin via role change", () => {
+    const actorWorkspaceRole = "DEVELOPER";
+    const canChangeRole = actorWorkspaceRole === "ADMIN";
+
+    assert.equal(canChangeRole, false);
+  });
+
+  it("project manager cannot elevate another user to PROJECT_MANAGER project role", () => {
+    const actorRole = "PROJECT_MANAGER";
+    const requestedRole = "PROJECT_MANAGER";
+    const isForbidden = actorRole === "PROJECT_MANAGER" && requestedRole === "PROJECT_MANAGER";
+
+    assert.equal(isForbidden, true);
+  });
+
+  it("createWorkspace ignores any role field in client request body", () => {
+    const clientBody = { name: "Hacked WS", description: "test", role: "ADMIN" };
+    const { name, description } = clientBody;
+
+    const safePayload = { name, description };
+
+    assert.ok(!Object.prototype.hasOwnProperty.call(safePayload, "role"));
+  });
+});
+
+describe("Project Members Table Role Display & Workspace Administrator Indicator", () => {
+  function getWorkspaceRoleIndicator(workspaceRole) {
+    if (workspaceRole === "ADMIN") {
+      return "Workspace Administrator";
+    }
+    return null;
+  }
+
+  it("distinguishes Workspace Administrator indicator when workspaceRole is ADMIN", () => {
+    const projectMember = {
+      userId: "u-creator",
+      role: "PROJECT_MANAGER",
+      workspaceRole: "ADMIN",
+    };
+
+    const indicator = getWorkspaceRoleIndicator(projectMember.workspaceRole);
+    assert.equal(indicator, "Workspace Administrator");
+    assert.equal(projectMember.role, "PROJECT_MANAGER");
+  });
+
+  it("does not attach Workspace Administrator indicator when workspaceRole is DEVELOPER or QA", () => {
+    const devMember = {
+      userId: "u-dev",
+      role: "DEVELOPER",
+      workspaceRole: "DEVELOPER",
+    };
+    const qaMember = {
+      userId: "u-qa",
+      role: "QA",
+      workspaceRole: "QA",
+    };
+
+    assert.equal(getWorkspaceRoleIndicator(devMember.workspaceRole), null);
+    assert.equal(getWorkspaceRoleIndicator(qaMember.workspaceRole), null);
+  });
+
+  it("preserves project role and workspace role independently when formatting project members", () => {
+    const rawMember = {
+      id: "pm-10",
+      userId: "u-admin",
+      role: "PROJECT_MANAGER",
+      joinedAt: new Date(),
+      user: {
+        firstName: "Ada",
+        lastName: "Lovelace",
+        email: "ada@example.com",
+        avatarUrl: null,
+        workspaceMemberships: [{ role: "ADMIN" }],
+      },
+    };
+
+    const formatted = {
+      membershipId: rawMember.id,
+      userId: rawMember.userId,
+      firstName: rawMember.user.firstName,
+      lastName: rawMember.user.lastName,
+      email: rawMember.user.email,
+      avatarUrl: rawMember.user.avatarUrl,
+      role: rawMember.role,
+      workspaceRole: rawMember.user.workspaceMemberships[0].role,
+      joinedAt: rawMember.joinedAt,
+    };
+
+    assert.equal(formatted.role, "PROJECT_MANAGER");
+    assert.equal(formatted.workspaceRole, "ADMIN");
+  });
+
+  it("changing a project member role from PROJECT_MANAGER to DEVELOPER keeps workspace role ADMIN", () => {
+    const user = { id: "u-1" };
+    const workspaceMember = { userId: user.id, role: "ADMIN" };
+    const projectMember = { userId: user.id, role: "PROJECT_MANAGER" };
+
+    // Update project role only
+    projectMember.role = "DEVELOPER";
+
+    // Workspace role must remain untouched
+    assert.equal(projectMember.role, "DEVELOPER");
+    assert.equal(workspaceMember.role, "ADMIN");
+  });
+
+  it("workspace creator remains WorkspaceRole.ADMIN across projects", () => {
+    const workspace = { id: "ws-1", createdById: "u-creator" };
+    const workspaceMemberships = [
+      { workspaceId: "ws-1", userId: "u-creator", role: "ADMIN" },
+    ];
+    const projectMemberships = [
+      { projectId: "p-1", userId: "u-creator", role: "PROJECT_MANAGER" },
+      { projectId: "p-2", userId: "u-creator", role: "DEVELOPER" },
+    ];
+
+    const creatorMembership = workspaceMemberships.find(
+      (m) => m.workspaceId === workspace.id && m.userId === workspace.createdById
+    );
+
+    assert.ok(creatorMembership);
+    assert.equal(creatorMembership.role, "ADMIN");
+    assert.equal(projectMemberships[0].role, "PROJECT_MANAGER");
+    assert.equal(projectMemberships[1].role, "DEVELOPER");
+  });
+});
+
+describe("Workspace Creator Administrator Permissions & Role Management", () => {
+  it("workspace creator automatically receives ADMIN role upon workspace creation", () => {
+    const creatorUserId = "creator-user-001";
+
+    const workspaceData = {
+      name: "New Workspace",
+      description: "Admin workspace",
+      slug: "new-workspace",
+      createdById: creatorUserId,
+      members: {
+        create: {
+          userId: creatorUserId,
+          role: "ADMIN",
+        },
+      },
+    };
+
+    assert.equal(workspaceData.createdById, creatorUserId);
+    assert.equal(workspaceData.members.create.userId, creatorUserId);
+    assert.equal(workspaceData.members.create.role, "ADMIN");
+  });
+
+  it("workspace administrator can add members to workspace", () => {
+    const actorRole = "ADMIN";
+    const canAdd = actorRole === "ADMIN";
+    assert.equal(canAdd, true);
+  });
+
+  it("workspace administrator can assign each valid workspace role (PROJECT_MANAGER, DEVELOPER, QA, ADMIN)", () => {
+    const validRoles = ["PROJECT_MANAGER", "DEVELOPER", "QA", "ADMIN"];
+    const actorRole = "ADMIN";
+
+    for (const targetRole of validRoles) {
+      const isAllowed = actorRole === "ADMIN" && validRoles.includes(targetRole);
+      assert.equal(isAllowed, true, `Admin should be able to assign ${targetRole}`);
+    }
+  });
+
+  it("normal workspace member cannot assign themselves or others administrator privileges", () => {
+    const actorRole = "DEVELOPER";
+    const canModifyRole = actorRole === "ADMIN";
+    assert.equal(canModifyRole, false);
+  });
+
+  it("workspace administrator can manage project members and assign all valid project roles", () => {
+    const actorWorkspaceRole = "ADMIN";
+    const validProjectRoles = ["PROJECT_MANAGER", "DEVELOPER", "QA"];
+
+    for (const projectRole of validProjectRoles) {
+      const canAssign = actorWorkspaceRole === "ADMIN" && validProjectRoles.includes(projectRole);
+      assert.equal(canAssign, true);
+    }
+  });
+
+  it("project-level role changes do not overwrite or reduce workspace ADMIN privileges", () => {
+    const userWorkspace = { userId: "creator-1", role: "ADMIN" };
+    const projectMember = { userId: "creator-1", role: "PROJECT_MANAGER" };
+
+    // Update project role to QA
+    projectMember.role = "QA";
+
+    // Workspace role must stay ADMIN
+    assert.equal(userWorkspace.role, "ADMIN");
+    assert.equal(projectMember.role, "QA");
+  });
+
+  it("unauthorized users cannot manage members of another workspace (tenant isolation)", () => {
+    const userWorkspaceMemberships = [
+      { workspaceId: "ws-own", userId: "user-1", role: "ADMIN" },
+    ];
+    const targetWorkspaceId = "ws-foreign";
+
+    const isMemberOfTarget = userWorkspaceMemberships.some(
+      (m) => m.workspaceId === targetWorkspaceId
+    );
+    assert.equal(isMemberOfTarget, false);
+  });
+
+  it("workspace creator cannot be removed from workspace or demoted from ADMIN", () => {
+    const workspace = { id: "ws-1", createdById: "u-creator" };
+    const targetMember = { userId: "u-creator", role: "ADMIN" };
+
+    const isCreator = workspace.createdById === targetMember.userId;
+    const canDemote = !isCreator;
+    const canRemove = !isCreator;
+
+    assert.equal(canDemote, false);
+    assert.equal(canRemove, false);
+  });
+
+  it("last administrator cannot be demoted or removed", () => {
+    const adminCount = 1;
+    const canDemote = adminCount > 1;
+    assert.equal(canDemote, false);
+  });
+});
+

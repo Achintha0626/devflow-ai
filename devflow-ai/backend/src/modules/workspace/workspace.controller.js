@@ -107,6 +107,9 @@ const changeMemberRole = async (req, res) => {
     if (error.message === "MEMBER_NOT_FOUND") {
       return res.status(404).json({ success: false, message: "Workspace member not found" });
     }
+    if (error.message === "CANNOT_DEMOTE_WORKSPACE_CREATOR") {
+      return res.status(409).json({ success: false, message: "Workspace creator must remain an Administrator" });
+    }
     if (error.message === "LAST_ADMIN") {
       return res.status(409).json({ success: false, message: "A workspace must have at least one ADMIN" });
     }
@@ -133,6 +136,9 @@ const removeMember = async (req, res) => {
   } catch (error) {
     if (error.message === "MEMBER_NOT_FOUND") {
       return res.status(404).json({ success: false, message: "Workspace member not found" });
+    }
+    if (error.message === "CANNOT_REMOVE_WORKSPACE_CREATOR") {
+      return res.status(409).json({ success: false, message: "Workspace creator cannot be removed from the workspace" });
     }
     if (error.message === "LAST_ADMIN") {
       return res.status(409).json({ success: false, message: "A workspace must have at least one ADMIN" });

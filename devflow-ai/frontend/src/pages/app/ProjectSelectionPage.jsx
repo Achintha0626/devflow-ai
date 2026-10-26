@@ -14,11 +14,13 @@ import {
   PlusIcon,
   UserIcon,
 } from "../../components/icons";
+import { useAuth } from "../../hooks/useAuth";
 import "./NavigationPages.css";
 
 export function ProjectSelectionPage() {
   const navigate = useNavigate();
   const { workspaceId } = useParams();
+  const { user } = useAuth();
   const mountedRef = useRef(true);
   const nameInputRef = useRef(null);
 
@@ -77,7 +79,9 @@ export function ProjectSelectionPage() {
   }, [workspaceId, reloadKey]);
 
   const canCreateProject =
-    membership?.role === "ADMIN" || membership?.role === "PROJECT_MANAGER";
+    membership?.role === "ADMIN" ||
+    membership?.role === "PROJECT_MANAGER" ||
+    Boolean(workspace?.createdById && user?.id && workspace.createdById === user.id);
 
   const handleOpenModal = useCallback(() => {
     setName("");

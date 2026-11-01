@@ -1,3 +1,5 @@
+const { resolveGeminiModel } = require("../../config/gemini");
+
 const redactDiagnosticText = (value) => {
   let text = String(value)
     .replace(/(authorization\s*[:=]\s*)[^\r\n,;]+/gi, "$1[REDACTED]")
@@ -32,7 +34,7 @@ const logSuccessfulFallbacks = (modelAttempts) => {
 const logGenerationFailure = (error) => {
   const diagnostic = {
     provider: "Gemini",
-    model: redactDiagnosticText(error?.geminiModel || process.env.GEMINI_MODEL || "gemini-2.5-flash"),
+    model: redactDiagnosticText(error?.geminiModel || resolveGeminiModel()),
     role: error?.geminiModelRole || "primary",
     apiKeyConfigured: Boolean(process.env.GEMINI_API_KEY),
     name: redactDiagnosticText(error?.name || "Error"),

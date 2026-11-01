@@ -104,7 +104,7 @@ cd backend
 npm install
 ```
 
-Create a local `.env` file based on `.env.example`. Configure your PostgreSQL `DATABASE_URL`, Redis `REDIS_URL`, distinct secure JWT secrets, `FRONTEND_URL`, `ML_SERVICE_URL`, and `GEMINI_API_KEY`.
+Create a local `.env` file based on `.env.example`. Configure your PostgreSQL `DATABASE_URL`, Redis `REDIS_URL`, distinct secure JWT secrets, `FRONTEND_URL`, `ML_SERVICE_URL`, and `GEMINI_API_KEY`. The backend defaults to `GEMINI_MODEL=gemini-3.8-flash`; set `GEMINI_FALLBACK_MODELS` only to explicitly selected models supported for `generateContent`.
 
 Create the `devflow_ai` PostgreSQL database, then apply the existing migrations and generate the Prisma client:
 
@@ -206,6 +206,8 @@ python -m pytest ml-service/tests -v
 The application is deployed using **Vercel** for the frontend and **Render** for the backend and ML service.
 
 For local development, configure the frontend API base URL and the backend's `FRONTEND_URL` and `ML_SERVICE_URL` to match the services you are running.
+
+In the Render backend service, set `GEMINI_MODEL=gemini-3.8-flash` so production uses the same model as the local default. Remove any obsolete `GEMINI_MODEL` override and leave `GEMINI_FALLBACK_MODELS` unset or empty unless supported fallback models are intentionally configured. Keep `GEMINI_API_KEY` configured only on the backend; it is not a Vercel frontend variable.
 
 Free hosting services may spin down after inactivity or have storage, persistence, and availability limits.
 

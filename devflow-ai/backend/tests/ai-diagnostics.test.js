@@ -1,7 +1,11 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 const { logGenerationFailure, logSuccessfulFallbacks } = require("../src/modules/ai/ai-diagnostics");
-const { GEMINI_MODEL, getConfiguredModels } = require("../src/services/gemini.service");
+const { DEFAULT_GEMINI_MODEL, resolveGeminiModel } = require("../src/config/gemini");
+const {
+  GEMINI_MODEL,
+  getConfiguredModels,
+} = require("../src/services/gemini.service");
 
 describe("AI generation diagnostics", () => {
   it("logs provider errors in production without exposing credentials", () => {
@@ -93,6 +97,12 @@ describe("AI generation diagnostics", () => {
 });
 
 describe("Gemini fallback model configuration", () => {
+  it("uses Gemini 3.8 Flash as the default and respects explicit model configuration", () => {
+    assert.equal(DEFAULT_GEMINI_MODEL, "gemini-3.8-flash");
+    assert.equal(resolveGeminiModel(undefined), DEFAULT_GEMINI_MODEL);
+    assert.equal(resolveGeminiModel(" custom-model "), "custom-model");
+  });
+
   it("uses only the primary model when fallback models are unset or empty", () => {
     const originalFallbackModels = process.env.GEMINI_FALLBACK_MODELS;
     try {

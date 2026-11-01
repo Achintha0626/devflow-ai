@@ -1,9 +1,10 @@
 const { GoogleGenAI, Type } = require("@google/genai");
 const { generatedTasksResponseSchema } = require("../modules/ai/ai.validation");
 const { logSuccessfulFallbacks } = require("../modules/ai/ai-diagnostics");
+const { DEFAULT_GEMINI_MODEL, resolveGeminiModel } = require("../config/gemini");
 
 const PROMPT_VERSION = "v1";
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GEMINI_MODEL = resolveGeminiModel(process.env.GEMINI_MODEL);
 const DEFAULT_MAX_RETRIES = 3;
 const MAX_RETRY_LIMIT = 5;
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
@@ -220,8 +221,10 @@ const generateTaskSuggestions = async ({ project, requirement }) => {
 };
 
 module.exports = {
+  DEFAULT_GEMINI_MODEL,
   GEMINI_MODEL,
   PROMPT_VERSION,
   getConfiguredModels,
   generateTaskSuggestions,
+  resolveGeminiModel,
 };

@@ -1,5 +1,6 @@
 const { GoogleGenAI, Type } = require("@google/genai");
 const { generatedTasksResponseSchema } = require("../modules/ai/ai.validation");
+const { logSuccessfulFallbacks } = require("../modules/ai/ai-diagnostics");
 
 const PROMPT_VERSION = "v1";
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -69,7 +70,10 @@ const isModelUnavailableError = (error) => getErrorStatus(error) === MODEL_UNAVA
 
 const getConfiguredModels = () => [...new Set([
   GEMINI_MODEL,
-  ...(process.env.GEMINI_FALLBACK_MODELS || "").split(","),
+  ...(process.env.GEMINI_FALLBACK_MODELS || "")
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean),
 ].map((model) => model.trim()).filter(Boolean))];
 
 const sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -148,21 +152,39 @@ const generateTaskSuggestions = async ({ project, requirement }) => {
   const client = getClient();
   const models = getConfiguredModels();
   const contents = buildPrompt({ project, requirement });
+  const modelAttempts = [];
   let response;
   let successfulModel;
 
   for (let modelIndex = 0; modelIndex < models.length; modelIndex += 1) {
     const model = models[modelIndex];
+    const role = modelIndex === 0 ? "primary" : "fallback";
     try {
       response = await requestWithRetries({ client, model, contents });
       successfulModel = model;
       break;
     } catch (error) {
+      modelAttempts.push({
+        model,
+        role,
+        status: getErrorStatus(error),
+        name: error?.name,
+        message: error?.message,
+      });
       const canUseFallback = modelIndex < models.length - 1
         && (isRetryableGeminiError(error) || isModelUnavailableError(error));
-      if (!canUseFallback) throw error;
+      if (!canUseFallback) {
+        error.geminiModel = model;
+        error.geminiModelRole = role;
+        error.geminiModelAttempts = modelAttempts;
+        throw error;
+      }
       logFallback({ model, fallbackModel: models[modelIndex + 1] });
     }
+  }
+
+  if (successfulModel && modelAttempts.length) {
+    logSuccessfulFallbacks(modelAttempts);
   }
 
   const rawText = typeof response.text === "function" ? response.text() : response.text;
@@ -200,5 +222,6 @@ const generateTaskSuggestions = async ({ project, requirement }) => {
 module.exports = {
   GEMINI_MODEL,
   PROMPT_VERSION,
+  getConfiguredModels,
   generateTaskSuggestions,
 };

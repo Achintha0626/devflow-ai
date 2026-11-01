@@ -12,16 +12,38 @@ const redactDiagnosticText = (value) => {
   return text.slice(0, 1000);
 };
 
+const sanitizeModelAttempt = (attempt) => ({
+  model: redactDiagnosticText(attempt.model),
+  role: attempt.role,
+  status: attempt.status,
+  name: redactDiagnosticText(attempt.name || "Error"),
+  message: redactDiagnosticText(attempt.message || "Unknown Gemini error"),
+});
+
+const logSuccessfulFallbacks = (modelAttempts) => {
+  modelAttempts.forEach((attempt) => {
+    console.warn("[AI] Gemini model attempt failed", {
+      provider: "Gemini",
+      ...sanitizeModelAttempt(attempt),
+    });
+  });
+};
+
 const logGenerationFailure = (error) => {
   const diagnostic = {
     provider: "Gemini",
-    model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    model: redactDiagnosticText(error?.geminiModel || process.env.GEMINI_MODEL || "gemini-2.5-flash"),
+    role: error?.geminiModelRole || "primary",
     apiKeyConfigured: Boolean(process.env.GEMINI_API_KEY),
     name: redactDiagnosticText(error?.name || "Error"),
     message: redactDiagnosticText(error?.message || "Unknown Gemini error"),
     code: error?.code === undefined ? undefined : redactDiagnosticText(error.code),
     status: error?.status ?? error?.statusCode ?? error?.response?.status,
   };
+
+  if (Array.isArray(error?.geminiModelAttempts)) {
+    diagnostic.modelAttempts = error.geminiModelAttempts.map(sanitizeModelAttempt);
+  }
 
   if (Array.isArray(error?.validationIssues)) {
     diagnostic.validationIssues = error.validationIssues.map((issue) => ({
@@ -37,4 +59,4 @@ const logGenerationFailure = (error) => {
   }
 };
 
-module.exports = { logGenerationFailure };
+module.exports = { logGenerationFailure, logSuccessfulFallbacks };

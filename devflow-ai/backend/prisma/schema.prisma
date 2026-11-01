@@ -225,6 +225,7 @@ model Requirement {
   projectId     String
   title         String
   description   String
+  technologies  Json                @default("[]")
   status        RequirementStatus   @default(DRAFT)
   priority      RequirementPriority @default(MEDIUM)
   createdById   String
@@ -241,17 +242,18 @@ model Requirement {
 }
 
 model AIGeneration {
-  id            String             @id @default(uuid())
-  requirementId String
-  model         String
-  promptVersion String
-  status        AIGenerationStatus @default(PENDING)
-  errorMessage  String?
-  createdById   String
-  createdAt     DateTime           @default(now())
-  requirement   Requirement        @relation(fields: [requirementId], references: [id], onDelete: Cascade)
-  createdBy     User               @relation("AIGenerationCreatedBy", fields: [createdById], references: [id])
-  suggestions   AISuggestedTask[]
+  id                 String             @id @default(uuid())
+  requirementId      String
+  model              String
+  promptVersion      String
+  technologySnapshot Json               @default("[]")
+  status             AIGenerationStatus @default(PENDING)
+  errorMessage       String?
+  createdById        String
+  createdAt          DateTime           @default(now())
+  requirement        Requirement        @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  createdBy          User               @relation("AIGenerationCreatedBy", fields: [createdById], references: [id])
+  suggestions        AISuggestedTask[]
 
   @@index([requirementId])
   @@index([requirementId, status])

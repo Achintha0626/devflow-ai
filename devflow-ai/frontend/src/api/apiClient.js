@@ -33,6 +33,35 @@ const apiClient = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+export async function fetchWithAuth(path, options = {}) {
+  const request = (token) => fetch(`${BASE_URL.replace(/\/+$/, "")}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  let accessToken = getAccessToken();
+  let response = await request(accessToken);
+  if (response.status !== 401) return response;
+
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    clearTokens();
+    window.dispatchEvent(new CustomEvent("devflow:auth:expired"));
+    return response;
+  }
+
+  const latestAccessToken = getAccessToken();
+  accessToken = latestAccessToken && latestAccessToken !== accessToken
+    ? latestAccessToken
+    : await refreshAccessToken();
+  response = await request(accessToken);
+  return response;
+}
+
 // ─── Request Interceptor ──────────────────────────────────────────────────────
 // Attach the current access token to every outgoing request.
 apiClient.interceptors.request.use((config) => {
@@ -59,6 +88,40 @@ function processQueue(error, accessToken = null) {
     }
   });
   failedQueue = [];
+}
+
+async function refreshAccessToken() {
+  if (isRefreshing) {
+    return new Promise((resolve, reject) => {
+      failedQueue.push({ resolve, reject });
+    });
+  }
+
+  const storedRefreshToken = getRefreshToken();
+  if (!storedRefreshToken) {
+    const error = new Error("Authentication session expired.");
+    clearTokens();
+    window.dispatchEvent(new CustomEvent("devflow:auth:expired"));
+    throw error;
+  }
+
+  isRefreshing = true;
+  try {
+    const response = await axios.post(`${BASE_URL}/auth/refresh`, {
+      refreshToken: storedRefreshToken,
+    });
+    const { accessToken, refreshToken } = response.data.data;
+    saveTokens(accessToken, refreshToken);
+    processQueue(null, accessToken);
+    return accessToken;
+  } catch (error) {
+    processQueue(error, null);
+    clearTokens();
+    window.dispatchEvent(new CustomEvent("devflow:auth:expired"));
+    throw error;
+  } finally {
+    isRefreshing = false;
+  }
 }
 
 // Auth endpoints that must NEVER trigger a refresh loop.

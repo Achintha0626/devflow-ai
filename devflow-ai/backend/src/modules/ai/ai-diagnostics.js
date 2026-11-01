@@ -31,6 +31,44 @@ const logSuccessfulFallbacks = (modelAttempts) => {
   });
 };
 
+const logGenerationPerformance = ({
+  model,
+  outcome,
+  stage,
+  metrics,
+  totalMs,
+}) => {
+  const timingFields = [
+    "contextQueryMs",
+    "generationRecordMs",
+    "promptPreparationMs",
+    "geminiApiResponseMs",
+    "retryDelayMs",
+    "responseProcessingMs",
+    "validationMs",
+    "databasePersistenceMs",
+  ];
+  const diagnostic = {
+    provider: "Gemini",
+    model: redactDiagnosticText(model || resolveGeminiModel()),
+    outcome,
+    stage,
+  };
+
+  timingFields.forEach((field) => {
+    const value = metrics[field];
+    if (Number.isFinite(value)) diagnostic[field] = Math.round(value * 10) / 10;
+  });
+
+  ["geminiRequests", "geminiRetries", "fallbackModelsTried", "promptCharacters", "responseCharacters", "promptTokenCount", "candidateTokenCount", "totalTokenCount"]
+    .forEach((field) => {
+      if (Number.isFinite(metrics[field])) diagnostic[field] = metrics[field];
+    });
+
+  if (Number.isFinite(totalMs)) diagnostic.totalMs = Math.round(totalMs * 10) / 10;
+  console.info("[AI] Generation performance", diagnostic);
+};
+
 const logGenerationFailure = (error) => {
   const diagnostic = {
     provider: "Gemini",
@@ -61,4 +99,8 @@ const logGenerationFailure = (error) => {
   }
 };
 
-module.exports = { logGenerationFailure, logSuccessfulFallbacks };
+module.exports = {
+  logGenerationFailure,
+  logGenerationPerformance,
+  logSuccessfulFallbacks,
+};

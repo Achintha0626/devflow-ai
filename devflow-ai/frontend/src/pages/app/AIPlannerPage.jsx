@@ -9,6 +9,7 @@ import { listRequirementsRequest } from "../../api/requirementApi";
 import { GenerationHistory } from "../../components/ai-planner/GenerationHistory";
 import { RequirementSelector } from "../../components/ai-planner/RequirementSelector";
 import { SuggestionCard } from "../../components/ai-planner/SuggestionCard";
+import { TechnologyStackBadges } from "../../components/requirements/TechnologyStack";
 import { getAiPlannerErrorMessage } from "../../components/ai-planner/aiPlannerUtils";
 import { LoadingState } from "../../components/NavigationFeedback";
 import { formatTaskLabel } from "../../components/tasks/taskUtils";
@@ -22,12 +23,46 @@ import {
 } from "../../components/icons";
 import "./AIPlanner.css";
 
-const GENERATION_STAGES = [
-  "Analyzing requirement scope",
-  "Structuring engineering tasks",
-  "Preparing acceptance criteria",
-  "Finalizing suggestions",
+const GENERATION_PHASES = [
+  {
+    id: "understanding",
+    title: "Understanding Requirement",
+    description: "Reviewing the selected requirement and identifying its scope and technical context.",
+  },
+  {
+    id: "preparing",
+    title: "Preparing AI Context",
+    description: "Preparing relevant project technologies and organizing the requirement for Gemini.",
+  },
+  {
+    id: "generating",
+    title: "Generating Engineering Tasks",
+    description: "Sending one structured request to Gemini 3.8 Flash for actionable engineering tasks.",
+  },
+  {
+    id: "validating",
+    title: "Validating Suggestions",
+    description: "Parsing the response and validating required fields, descriptions, and acceptance criteria.",
+  },
+  {
+    id: "saving",
+    title: "Saving Suggestions",
+    description: "Persisting validated suggestions and confirming the database write completed.",
+  },
+  {
+    id: "ready",
+    title: "Ready for Review",
+    description: "Suggestions are saved and ready to inspect, edit, approve, or reject.",
+  },
 ];
+
+const createInitialPhases = () => GENERATION_PHASES.map(({ id }) => ({ id, status: "pending" }));
+
+const formatElapsedTime = (elapsedSeconds) => {
+  const minutes = Math.floor(elapsedSeconds / 60);
+  const seconds = elapsedSeconds % 60;
+  return minutes ? `${minutes}:${String(seconds).padStart(2, "0")}` : `${seconds}s`;
+};
 
 export function AIPlannerPage() {
   const { workspaceId, projectId } = useParams();
@@ -41,17 +76,22 @@ export function AIPlannerPage() {
   const [isLoadingRequirements, setIsLoadingRequirements] = useState(true);
   const [isLoadingGenerations, setIsLoadingGenerations] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [hasLongWait, setHasLongWait] = useState(false);
-  const [generationStage, setGenerationStage] = useState(0);
+  const [isGenerationComplete, setIsGenerationComplete] = useState(false);
+  const [isGenerationFailed, setIsGenerationFailed] = useState(false);
+  const [generationPhases, setGenerationPhases] = useState(createInitialPhases);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [generationTargetTitle, setGenerationTargetTitle] = useState("");
   const [activeTab, setActiveTab] = useState("suggestions");
   const [isDescExpanded, setIsDescExpanded] = useState(false);
   const [pendingReviewId, setPendingReviewId] = useState("");
   const [pendingConvertId, setPendingConvertId] = useState("");
 
   const reviewSectionRef = useRef(null);
-  const timerRef = useRef(null);
-  const stageIntervalRef = useRef(null);
+  const generationStartedAtRef = useRef(null);
+  const completionTimerRef = useRef(null);
   const feedbackTimerRef = useRef(null);
+  const generationInFlightRef = useRef(false);
+  const isMountedRef = useRef(true);
 
   const showFeedback = (msg) => {
     setFeedback(msg);
@@ -141,34 +181,48 @@ export function AIPlannerPage() {
   }, [workspaceId, projectId]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      if (stageIntervalRef.current) clearInterval(stageIntervalRef.current);
+      isMountedRef.current = false;
+      if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
       if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
     };
   }, []);
 
+  useEffect(() => {
+    if (!isGenerating || !generationStartedAtRef.current) return undefined;
+    const updateElapsedTime = () => {
+      setElapsedSeconds(Math.floor((Date.now() - generationStartedAtRef.current) / 1000));
+    };
+    updateElapsedTime();
+    const intervalId = setInterval(updateElapsedTime, 1000);
+    return () => clearInterval(intervalId);
+  }, [isGenerating]);
+
   const handleGenerate = async () => {
-    if (isGenerating || !selectedRequirementId) return;
+    if (generationInFlightRef.current || !selectedRequirementId) return;
+    generationInFlightRef.current = true;
     const targetReqId = selectedRequirementId;
+    setGenerationTargetTitle(selectedRequirement?.title || "");
     setIsGenerating(true);
-    setHasLongWait(false);
-    setGenerationStage(0);
+    setIsGenerationComplete(false);
+    setIsGenerationFailed(false);
+    setGenerationPhases(createInitialPhases());
+    setElapsedSeconds(0);
+    generationStartedAtRef.current = Date.now();
     setPageError("");
     setFeedback("");
-
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      setHasLongWait(true);
-    }, 10000);
-
-    if (stageIntervalRef.current) clearInterval(stageIntervalRef.current);
-    stageIntervalRef.current = setInterval(() => {
-      setGenerationStage((prev) => (prev < 3 ? prev + 1 : prev));
-    }, 3000);
+    if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
 
     try {
-      const response = await generateSuggestionsRequest(workspaceId, projectId, targetReqId);
+      const response = await generateSuggestionsRequest(workspaceId, projectId, targetReqId, (progress) => {
+        if (!isMountedRef.current) return;
+        setGenerationPhases((current) => current.map((phase) =>
+          phase.id === progress.phase ? { ...phase, status: progress.status } : phase
+        ));
+        if (progress.status === "failed") setIsGenerationFailed(true);
+      });
+      if (!isMountedRef.current) return;
       const generation = response.data || null;
 
       setGenerationMap((current) => ({
@@ -181,10 +235,12 @@ export function AIPlannerPage() {
       }));
 
       setActiveTab("suggestions");
+      setIsGenerationComplete(true);
       const count = generation?.suggestions?.length || 0;
       showFeedback(`${count} task ${count === 1 ? "suggestion is" : "suggestions are"} ready for review.`);
 
       setTimeout(() => {
+        if (!isMountedRef.current) return;
         if (reviewSectionRef.current) {
           const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
           reviewSectionRef.current.scrollIntoView({
@@ -192,13 +248,23 @@ export function AIPlannerPage() {
             block: "start",
           });
         }
-      }, 150);
+      }, 900);
+      completionTimerRef.current = setTimeout(() => {
+        if (isMountedRef.current) setIsGenerationComplete(false);
+      }, 1500);
     } catch (error) {
-      setPageError(getAiPlannerErrorMessage(error, "Unable to generate AI suggestions."));
+      if (isMountedRef.current) {
+        if (error.generationPhase) {
+          setIsGenerationFailed(true);
+          setGenerationPhases((current) => current.map((phase) =>
+            phase.id === error.generationPhase ? { ...phase, status: "failed" } : phase
+          ));
+        }
+        setPageError(getAiPlannerErrorMessage(error, "Unable to generate AI suggestions."));
+      }
     } finally {
-      setIsGenerating(false);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      if (stageIntervalRef.current) clearInterval(stageIntervalRef.current);
+      generationInFlightRef.current = false;
+      if (isMountedRef.current) setIsGenerating(false);
     }
   };
 
@@ -273,6 +339,12 @@ export function AIPlannerPage() {
   const statusSlug = (selectedRequirement?.status || "").toLowerCase();
   const prioritySlug = (selectedRequirement?.priority || "").toLowerCase();
   const isDescLong = (selectedRequirement?.description || "").length > 240;
+  const activeTechnologyStack = selectedRequirement?.technologies?.length
+    ? selectedRequirement.technologies
+    : selectedRequirement?.project?.technologies || [];
+  const activeTechnologyStackSource = selectedRequirement?.technologies?.length
+    ? "Requirement stack"
+    : "Project stack";
 
   return (
     <div className="ai-planner-page">
@@ -333,7 +405,9 @@ export function AIPlannerPage() {
           <RequirementSelector
             requirements={requirements}
             selectedRequirementId={selectedRequirementId}
+            disabled={isGenerating}
             onSelect={(id) => {
+              if (isGenerating) return;
               setSelectedRequirementId(id);
               setPageError("");
               setFeedback("");
@@ -378,6 +452,13 @@ export function AIPlannerPage() {
                 )}
               </div>
 
+              <div className="ai-requirement-stack">
+                <span className="ai-requirement-stack__label">
+                  {activeTechnologyStack.length ? activeTechnologyStackSource : "Technology stack"}
+                </span>
+                <TechnologyStackBadges technologies={activeTechnologyStack} />
+              </div>
+
               <div className="ai-requirement-actions-row">
                 <div className="ai-action-caption">
                   <AIPlannerIcon size={15} />
@@ -387,56 +468,76 @@ export function AIPlannerPage() {
             </section>
           )}
 
-          {isGenerating && (
+          {(isGenerating || isGenerationComplete || isGenerationFailed) && (
             <section
               className="ai-panel ai-generating-panel"
-              role="status"
+              role={isGenerating ? "status" : "region"}
               aria-live="polite"
-              aria-label="Generating task suggestions"
+              aria-label={isGenerationFailed ? "Task generation failed" : isGenerationComplete ? "Task generation complete" : "Generating task suggestions"}
             >
               <div className="ai-generating-header">
-                <div className="ai-spark-orb">
-                  <div className="ai-orb-ring ai-orb-ring--1" />
-                  <div className="ai-orb-ring ai-orb-ring--2" />
-                  <AIPlannerIcon size={22} />
+                <div className={`ai-generation-status-icon${isGenerationComplete ? " is-complete" : ""}${isGenerationFailed ? " is-failed" : ""}`} aria-hidden="true">
+                  {isGenerationComplete
+                    ? <CheckIcon size={20} />
+                    : isGenerationFailed
+                      ? <AlertCircleIcon size={20} />
+                      : <AIPlannerIcon size={20} />}
                 </div>
                 <div className="ai-generating-titles">
-                  <h3>Creating your task breakdown</h3>
-                  <p>Analyzing your requirement and preparing actionable engineering tasks. This may take a little while.</p>
+                  <div className="ai-generating-title-row">
+                    <h3>
+                      {isGenerationFailed
+                        ? "Generation stopped before completion"
+                        : isGenerationComplete
+                          ? "Suggestions are ready for review"
+                          : "Generating your task suggestions"}
+                    </h3>
+                    <span className="ai-generation-elapsed" aria-label={`Elapsed time ${formatElapsedTime(elapsedSeconds)}`}>
+                      {formatElapsedTime(elapsedSeconds)}
+                    </span>
+                  </div>
+                  <p>
+                    {isGenerationFailed
+                      ? "The highlighted step did not complete. You can retry after checking the error above."
+                      : isGenerationComplete
+                        ? "All suggestions have been saved successfully."
+                        : "Progress updates reflect completed backend operations."}
+                  </p>
                   <span className="ai-generating-context-tag">
-                    Target: <strong>{selectedRequirement?.title}</strong>
+                    Target: <strong>{generationTargetTitle}</strong>
                   </span>
                 </div>
               </div>
 
-              <div className="ai-generating-stages">
-                {GENERATION_STAGES.map((stageName, index) => {
-                  const isDone = generationStage > index;
-                  const isActive = generationStage === index;
+              <ol className="ai-generation-steps" aria-label="AI generation stages">
+                {GENERATION_PHASES.map((phase, index) => {
+                  const status = generationPhases.find((item) => item.id === phase.id)?.status || "pending";
                   return (
-                    <div
-                      key={stageName}
-                      className={`ai-stage-item${isActive ? " is-active" : ""}${isDone ? " is-done" : ""}`}
+                    <li
+                      key={phase.id}
+                      className={`ai-generation-step ai-generation-step--${status}`}
+                      aria-current={status === "active" ? "step" : undefined}
                     >
-                      <span className="ai-stage-dot">
-                        {isDone ? <CheckIcon size={10} /> : null}
+                      <span className="ai-generation-step__marker" aria-hidden="true">
+                        {status === "completed"
+                          ? <CheckIcon size={14} />
+                          : status === "active"
+                            ? <span className="ai-generation-step__spinner" />
+                            : status === "failed"
+                              ? <AlertCircleIcon size={14} />
+                              : index + 1}
                       </span>
-                      <span>{stageName}</span>
-                    </div>
+                      <span className="ai-generation-step__copy">
+                        <span className="ai-generation-step__title">{phase.title}</span>
+                        <span className="ai-generation-step__description">{phase.description}</span>
+                      </span>
+                      <span className="ai-generation-step__status">
+                        {status === "completed" ? "Complete" : status === "active" ? "In progress" : status === "failed" ? "Failed" : "Pending"}
+                      </span>
+                    </li>
                   );
                 })}
-              </div>
-
-              <div className="ai-progress-track" aria-hidden="true">
-                <div className="ai-progress-bar-indeterminate" />
-              </div>
-
-              {hasLongWait && (
-                <div className="ai-long-wait-note" role="note">
-                  <span className="ai-long-wait-icon">ℹ</span>
-                  <span>Still working on your suggestions. More detailed requirements can take longer to process.</span>
-                </div>
-              )}
+              </ol>
             </section>
           )}
         </div>

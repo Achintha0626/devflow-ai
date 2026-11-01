@@ -1,5 +1,6 @@
 import { formatSuggestionDate, formatCreatorName } from "./aiPlannerUtils";
 import { CheckIcon, CalendarIcon, UserIcon } from "../icons";
+import { TechnologyStackBadges } from "../requirements/TechnologyStack";
 
 export function GenerationHistory({ generations, selectedGenerationId, onSelect }) {
   if (generations.length === 0) {
@@ -42,6 +43,12 @@ export function GenerationHistory({ generations, selectedGenerationId, onSelect 
                     {suggestionCount} {suggestionCount === 1 ? "task suggestion" : "task suggestions"}
                   </span>
                 </div>
+
+                {generation.technologySnapshot?.length > 0 && (
+                  <div className="ai-generation-card__technologies">
+                    <TechnologyStackBadges technologies={generation.technologySnapshot} />
+                  </div>
+                )}
 
                 <div className="ai-generation-card__footer">
                   <span className="ai-generation-card__creator">

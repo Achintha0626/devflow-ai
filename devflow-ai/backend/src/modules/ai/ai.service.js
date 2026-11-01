@@ -1,6 +1,11 @@
+const { performance } = require("node:perf_hooks");
 const prisma = require("../../config/prisma");
 const { generateTaskSuggestions, GEMINI_MODEL, PROMPT_VERSION } = require("../../services/gemini.service");
-const { logGenerationFailure } = require("./ai-diagnostics");
+const {
+  logGenerationFailure,
+  logGenerationPerformance,
+} = require("./ai-diagnostics");
+const { createGenerationProgressReporter } = require("./generation-progress");
 
 const safeSuggestionSelect = {
   id: true,
@@ -32,6 +37,7 @@ const safeGenerationSelect = {
   promptVersion: true,
   status: true,
   errorMessage: true,
+  technologySnapshot: true,
   createdById: true,
   createdAt: true,
   createdBy: { select: safeCreatorSelect },
@@ -58,12 +64,10 @@ const getGenerationContext = async ({ projectId, requirementId }) => {
       id: true,
       title: true,
       description: true,
+      technologies: true,
       priority: true,
       project: {
         select: {
-          id: true,
-          name: true,
-          description: true,
           technologies: { select: { name: true, category: true }, orderBy: { name: "asc" } },
         },
       },
@@ -71,55 +75,134 @@ const getGenerationContext = async ({ projectId, requirementId }) => {
   });
 
   if (!requirement) throw new Error("REQUIREMENT_NOT_FOUND");
-  return { requirement, project: requirement.project };
+  const requirementTechnologies = Array.isArray(requirement.technologies) ? requirement.technologies : [];
+  const projectTechnologies = requirement.project.technologies || [];
+  const technologyStack = requirementTechnologies.length ? requirementTechnologies : projectTechnologies;
+  return {
+    requirement,
+    project: { technologies: technologyStack },
+    technologyStack,
+  };
 };
 
-const generateSuggestions = async ({ projectId, requirementId, userId }) => {
-  const context = await getGenerationContext({ projectId, requirementId });
-  const generation = await prisma.aIGeneration.create({
-    data: {
-      requirementId,
-      model: GEMINI_MODEL,
-      promptVersion: PROMPT_VERSION,
-      createdById: userId,
-    },
-  });
-
+const generateSuggestions = async ({ projectId, requirementId, userId, onProgress }) => {
+  const startedAt = performance.now();
+  const metrics = {};
+  let stage = "requirement_context";
+  let generation;
+  const progress = createGenerationProgressReporter(onProgress);
   try {
-    const { tasks, model } = await generateTaskSuggestions(context);
-    const completedGeneration = await prisma.$transaction(async (tx) => {
-      await tx.aISuggestedTask.createMany({
-        data: tasks.map((task) => ({
-          aiGenerationId: generation.id,
-          title: task.title,
-          description: task.description,
-          type: task.type,
-          priority: task.priority,
-          complexity: task.complexity,
-          estimatedStoryPoints: task.estimatedStoryPoints,
-          acceptanceCriteria: task.acceptanceCriteria,
-        })),
-      });
+    let operationStartedAt = performance.now();
+    progress.report({ phase: "understanding", status: "active" });
+    const context = await getGenerationContext({ projectId, requirementId });
+    metrics.contextQueryMs = performance.now() - operationStartedAt;
+    progress.report({ phase: "understanding", status: "completed" });
 
-      await tx.aIGeneration.update({
-        where: { id: generation.id },
-        data: { model, status: "COMPLETED" },
-      });
+    stage = "generation_record";
+    progress.report({ phase: "preparing", status: "active" });
+    operationStartedAt = performance.now();
+    generation = await prisma.aIGeneration.create({
+      data: {
+        requirementId,
+        model: GEMINI_MODEL,
+        promptVersion: PROMPT_VERSION,
+        technologySnapshot: context.technologyStack,
+        createdById: userId,
+      },
+    });
+    metrics.generationRecordMs = performance.now() - operationStartedAt;
 
-      return tx.aIGeneration.findUnique({
-        where: { id: generation.id },
-        select: safeGenerationSelect,
-      });
+    stage = "gemini";
+    const { tasks, model, metrics: generationMetrics } = await generateTaskSuggestions({
+      ...context,
+      onProgress: progress.report,
+    });
+    Object.assign(metrics, generationMetrics);
+
+    stage = "database_persistence";
+    progress.report({ phase: "saving", status: "active" });
+    operationStartedAt = performance.now();
+    const completedGeneration = await prisma.aIGeneration.update({
+      where: { id: generation.id },
+      data: {
+        model,
+        status: "COMPLETED",
+        suggestions: {
+          createMany: {
+            data: tasks.map((task) => ({
+              title: task.title,
+              description: task.description,
+              type: task.type,
+              priority: task.priority,
+              complexity: task.complexity,
+              estimatedStoryPoints: task.estimatedStoryPoints,
+              acceptanceCriteria: task.acceptanceCriteria,
+            })),
+          },
+        },
+      },
+      select: safeGenerationSelect,
+    });
+    metrics.databasePersistenceMs = performance.now() - operationStartedAt;
+    progress.report({ phase: "saving", status: "completed" });
+    progress.report({ phase: "ready", status: "active" });
+    progress.report({ phase: "ready", status: "completed" });
+    logGenerationPerformance({
+      model,
+      outcome: "completed",
+      stage: "completed",
+      metrics,
+      totalMs: performance.now() - startedAt,
     });
 
     return completedGeneration;
   } catch (error) {
-    logGenerationFailure(error);
-    await prisma.aIGeneration.update({
-      where: { id: generation.id },
-      data: { status: "FAILED", errorMessage: safeGenerationError(error) },
-    }).catch(() => undefined);
-    throw new Error("AI_GENERATION_FAILED");
+    const failedPhase = progress.failActive();
+    if (failedPhase && error && typeof error === "object") {
+      error.generationPhase = failedPhase;
+    }
+    Object.assign(metrics, error?.geminiMetrics || {});
+    if (stage === "gemini") {
+      logGenerationFailure(error);
+    } else {
+      console.error("[AI] Generation request failed", {
+        stage,
+        name: error?.name || "Error",
+        code: error?.code,
+        status: error?.status ?? error?.statusCode,
+      });
+    }
+
+    if (generation) {
+      operationStartedAt = performance.now();
+      try {
+        await prisma.aIGeneration.update({
+          where: { id: generation.id },
+          data: { status: "FAILED", errorMessage: safeGenerationError(error) },
+        });
+      } catch (persistenceError) {
+        console.error("[AI] Failed to persist generation failure", {
+          name: persistenceError?.name || "Error",
+          code: persistenceError?.code,
+          status: persistenceError?.status ?? persistenceError?.statusCode,
+        });
+      } finally {
+        metrics.databasePersistenceMs = (metrics.databasePersistenceMs || 0)
+          + performance.now() - operationStartedAt;
+      }
+    }
+
+    logGenerationPerformance({
+      model: error?.geminiModel || GEMINI_MODEL,
+      outcome: "failed",
+      stage,
+      metrics,
+      totalMs: performance.now() - startedAt,
+    });
+    if (!generation) throw error;
+    const generationError = new Error("AI_GENERATION_FAILED");
+    generationError.generationPhase = error.generationPhase;
+    throw generationError;
   }
 };
 

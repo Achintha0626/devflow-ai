@@ -209,6 +209,14 @@ For local development, configure the frontend API base URL and the backend's `FR
 
 In the Render backend service, set `GEMINI_MODEL=gemini-3.8-flash` so production uses the same model as the local default. Remove any obsolete `GEMINI_MODEL` override and leave `GEMINI_FALLBACK_MODELS` unset or empty unless supported fallback models are intentionally configured. Keep `GEMINI_API_KEY` configured only on the backend; it is not a Vercel frontend variable.
 
+Backend logs include AI generation phase durations, Gemini request/retry counts, prompt length, and provider token usage when returned. Prompt and requirement content are not included in performance logs.
+
+The AI Planner streams generation-stage updates from the authenticated backend request. Step completion is emitted only after the corresponding context, Gemini, validation, or database operation succeeds; interrupted clients can check generation history after returning to the Planner.
+
+Requirements can optionally store a categorized technology stack. The Planner uses requirement-specific selections in preference to the project stack and records the effective stack with each generation; when neither is available, Gemini is instructed to keep tasks technology-neutral.
+
+Deployments must apply the new additive Prisma migration (`npx prisma migrate deploy`) before running the updated backend. Existing requirements and generation history receive empty-stack defaults and remain readable.
+
 Free hosting services may spin down after inactivity or have storage, persistence, and availability limits.
 
 ## 👥 Roles at a Glance

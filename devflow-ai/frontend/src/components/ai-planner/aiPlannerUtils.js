@@ -31,6 +31,12 @@ export function getAiPlannerErrorMessage(error, fallback = "The AI planner reque
   if (status === 403) return "Project management permission is required to generate or review AI suggestions.";
   if (status === 404) return "This requirement, generation, or suggestion is no longer available.";
   if (status === 502) return "AI suggestion generation failed. Please try again later.";
+  if (status === 504 || error?.code === "ECONNABORTED" || error?.code === "ETIMEDOUT") {
+    return "The generation request timed out. Check generation history before retrying; it may have completed.";
+  }
+  if (error?.request && !error?.response) {
+    return "The connection was interrupted while waiting. Check generation history before retrying; the server may have completed the request.";
+  }
   return getErrorMessage(error, fallback);
 }
 

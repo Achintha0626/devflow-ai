@@ -6,6 +6,7 @@ import {
   formatTaskLabel,
 } from "./requirementUtils";
 import { EditIcon, TrashIcon, AIPlannerIcon, UserIcon } from "../icons";
+import { TechnologyStackBadges } from "./TechnologyStack";
 
 export function RequirementDetails({
   requirement,
@@ -18,6 +19,10 @@ export function RequirementDetails({
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const statusSlug = (requirement.status || "").toLowerCase();
   const prioritySlug = (requirement.priority || "").toLowerCase();
+  const technologyStack = Array.isArray(requirement.technologies) && requirement.technologies.length
+    ? requirement.technologies
+    : requirement.project?.technologies || [];
+  const technologyStackSource = requirement.technologies?.length ? "Requirement technology stack" : "Project technology stack";
 
   return (
     <section
@@ -80,6 +85,11 @@ export function RequirementDetails({
         <div className="requirement-details__description-body">
           <p>{requirement.description}</p>
         </div>
+      </section>
+
+      <section className="requirement-details__description">
+        <h3>{technologyStackSource}</h3>
+        <TechnologyStackBadges technologies={technologyStack} />
       </section>
 
       <dl className="requirement-metadata">

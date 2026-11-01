@@ -10,12 +10,15 @@ import {
   formatTaskLabel,
   getRequirementErrorMessage,
 } from "./requirementUtils";
+import { TechnologyStackEditor } from "./TechnologyStack";
+import { areTechnologyStacksEqual } from "./technologyStackUtils";
 import { CloseIcon } from "../icons";
 
 function getValues(requirement) {
   return {
     title: requirement?.title || "",
     description: requirement?.description || "",
+    technologies: Array.isArray(requirement?.technologies) ? requirement.technologies : [],
     priority: requirement?.priority || "MEDIUM",
     status: requirement?.status || "DRAFT",
   };
@@ -27,6 +30,9 @@ function getChangedFields(values, requirement) {
   const description = values.description.trim();
   if (title !== requirement.title) payload.title = title;
   if (description !== requirement.description) payload.description = description;
+  if (!areTechnologyStacksEqual(values.technologies, requirement.technologies || [])) {
+    payload.technologies = values.technologies;
+  }
   if (values.priority !== requirement.priority) payload.priority = values.priority;
   if (values.status !== requirement.status) payload.status = values.status;
   return payload;
@@ -50,6 +56,7 @@ export function RequirementForm({ requirement = null, onCancel, onSaved }) {
   const isDirty =
     values.title !== initialValues.title ||
     values.description !== initialValues.description ||
+    !areTechnologyStacksEqual(values.technologies, initialValues.technologies) ||
     values.priority !== initialValues.priority ||
     values.status !== initialValues.status;
 
@@ -99,6 +106,7 @@ export function RequirementForm({ requirement = null, onCancel, onSaved }) {
         description,
         priority: values.priority,
         status: values.status,
+        technologies: values.technologies,
       };
 
     if (isEditing && Object.keys(payload).length === 0) {
@@ -179,6 +187,14 @@ export function RequirementForm({ requirement = null, onCancel, onSaved }) {
             </select>
           </label>
         </div>
+        <TechnologyStackEditor
+          technologies={values.technologies}
+          onChange={(technologies) => {
+            setValues((current) => ({ ...current, technologies }));
+            setError("");
+          }}
+          disabled={isSaving}
+        />
         {error && <p className="requirement-form__error" role="alert">{error}</p>}
         <div className="requirement-form__actions">
           <button className="requirement-button requirement-button--primary" type="submit" disabled={isSaving}>

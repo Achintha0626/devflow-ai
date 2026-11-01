@@ -5,6 +5,7 @@ export function RequirementSelector({
   requirements,
   selectedRequirementId,
   onSelect,
+  disabled = false,
 }) {
   if (requirements.length === 0) {
     return (
@@ -35,6 +36,7 @@ export function RequirementSelector({
             id="ai-requirement-dropdown"
             className="ai-dropdown-select"
             value={selectedRequirementId || ""}
+            disabled={disabled}
             onChange={(event) => onSelect(event.target.value)}
           >
             {requirements.map((req) => (
@@ -59,6 +61,7 @@ export function RequirementSelector({
               role="radio"
               aria-checked={isSelected}
               className={`ai-requirement-card${isSelected ? " is-selected" : ""}`}
+              disabled={disabled}
               onClick={() => onSelect(req.id)}
             >
               <div className="ai-requirement-card__header">

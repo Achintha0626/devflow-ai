@@ -5,6 +5,7 @@ const safeRequirementSelect = {
   projectId: true,
   title: true,
   description: true,
+  technologies: true,
   status: true,
   priority: true,
   createdById: true,
@@ -19,9 +20,17 @@ const safeRequirementSelect = {
       avatarUrl: true,
     },
   },
+  project: {
+    select: {
+      technologies: {
+        select: { name: true, category: true },
+        orderBy: { name: "asc" },
+      },
+    },
+  },
 };
 
-const createRequirement = async ({ projectId, userId, title, description, priority, status }) => prisma.requirement.create({
+const createRequirement = async ({ projectId, userId, title, description, priority, status, technologies }) => prisma.requirement.create({
   data: {
     projectId,
     title,
@@ -29,6 +38,7 @@ const createRequirement = async ({ projectId, userId, title, description, priori
     createdById: userId,
     ...(priority !== undefined ? { priority } : {}),
     ...(status !== undefined ? { status } : {}),
+    ...(technologies !== undefined ? { technologies } : {}),
   },
   select: safeRequirementSelect,
 });
@@ -52,7 +62,7 @@ const getRequirement = async ({ projectId, requirementId }) => prisma.requiremen
   select: safeRequirementSelect,
 });
 
-const updateRequirement = async ({ projectId, requirementId, title, description, status, priority }) => {
+const updateRequirement = async ({ projectId, requirementId, title, description, status, priority, technologies }) => {
   const existing = await prisma.requirement.findFirst({
     where: { id: requirementId, projectId },
     select: { id: true },
@@ -65,6 +75,7 @@ const updateRequirement = async ({ projectId, requirementId, title, description,
   if (description !== undefined) data.description = description;
   if (status !== undefined) data.status = status;
   if (priority !== undefined) data.priority = priority;
+  if (technologies !== undefined) data.technologies = technologies;
 
   const result = await prisma.requirement.updateMany({
     where: { id: requirementId, projectId },

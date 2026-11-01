@@ -1,5 +1,6 @@
 const prisma = require("../../config/prisma");
 const { generateTaskSuggestions, GEMINI_MODEL, PROMPT_VERSION } = require("../../services/gemini.service");
+const { logGenerationFailure } = require("./ai-diagnostics");
 
 const safeSuggestionSelect = {
   id: true,
@@ -38,28 +39,6 @@ const safeGenerationSelect = {
     orderBy: { createdAt: "asc" },
     select: safeSuggestionSelect,
   },
-};
-
-const redactDiagnosticText = (value) => String(value)
-  .replace(/(api[_-]?key|authorization|bearer|token|secret|password)\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")
-  .replace(/AIza[0-9A-Za-z_-]+/g, "[REDACTED_API_KEY]");
-
-const logGenerationFailure = (error) => {
-  if (process.env.NODE_ENV === "production") return;
-
-  const diagnostic = {
-    name: error?.name,
-    message: error?.message ? redactDiagnosticText(error.message) : "Unknown Gemini error",
-    code: error?.code,
-    status: error?.status ?? error?.statusCode,
-  };
-
-  if (Array.isArray(error?.validationIssues)) {
-    diagnostic.validationIssues = error.validationIssues;
-  }
-
-  console.error("[AI] Gemini generation failed", diagnostic);
-  if (error?.stack) console.error(redactDiagnosticText(error.stack));
 };
 
 const safeGenerationError = (error) => {
